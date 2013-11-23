@@ -91,10 +91,8 @@ FeatureCalculator::FeatureCalculator( std::vector<std::string> &feature_list ){
 	for( ; itname != feature_list.end(); ++itname )
 		configureFeature( *itname );	
 
-	if( used_feature_idxs.size() == 0 ){
-		std::cout << "Error reading feature list, no features found" << std::endl;
-		throw( InvalidConfigException() );
-	}
+	if( used_feature_idxs.size() == 0 )
+		std::cout << "Warning: No features found in feature list" << std::endl;
 
 }
 

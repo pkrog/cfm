@@ -47,6 +47,12 @@ Transition::Transition( int a_from_id, int a_to_id, romol_ptr_t &a_nl, romol_ptr
 	
 	to_id = a_to_id;
 	from_id = a_from_id;
+	nl_smiles = RDKit::MolToSmiles( *(nl.mol.get()) );
+}
+
+Transition::Transition( int a_from_id, int a_to_id, RootedROMolPtr &a_nl, RootedROMolPtr &an_ion  ) :
+	to_id( a_to_id ), from_id( a_from_id ), nl( a_nl ), ion( an_ion ){
+	nl_smiles = RDKit::MolToSmiles( *(nl.mol.get()) );
 }
 
 //Add a fragment node to the graph (should be the only way to modify the graph)
@@ -128,6 +134,23 @@ int FragmentGraph::addToGraphWithThetas(romol_ptr_t ion, romol_ptr_t nl, const s
 
 }
 
+//Direct constructor that bipasses the mols altogether and directly sets the nl_smiles
+int EvidenceFragmentGraph::addToGraphDirectNoCheck( const EvidenceFragment &fragment, const Transition *transition, int parentid ){
+
+	int id = fragments.size();
+	fragments.push_back( EvidenceFragment( fragment, id ) );
+	from_id_tmap.resize(id+1);
+	to_id_tmap.resize(id+1);
+	if(parentid >= 0 ) addTransition( parentid, id, transition->getNLSmiles() );
+	return id;
+}
+
+void EvidenceFragmentGraph::addTransition(int from_id, int to_id, const std::string *nl_smiles ){
+	unsigned int idx = transitions.size();
+	transitions.push_back( Transition( from_id, to_id, nl_smiles ) );
+	from_id_tmap[from_id].push_back( idx );
+	to_id_tmap[to_id].push_back( idx );
+}
 
 int FragmentGraph::addFragmentOrFetchExistingId( romol_ptr_t ion, double mass ){
 
@@ -229,35 +252,57 @@ int FragmentGraph::findMatchingTransition( int from_id, int to_id ){
 
 
 //Write the Fragments only to file (formerly the backtrack output - without extra details)
-void FragmentGraph::writeFragmentsOnly( std::ostream &out ){
+void FragmentGraph::writeFragmentsOnly( std::ostream &out ) const{
 
-	std::vector<Fragment>::iterator it = fragments.begin();
+	std::vector<Fragment>::const_iterator it = fragments.begin();
 	for( ; it != fragments.end(); ++it ){
 		out << it->getId() << " ";
-		out << std::setprecision(6) << it->getMass() << " ";
+		out << std::setprecision(10) << it->getMass() << " ";
 		out << *it->getIonSmiles() << std::endl;
 	}
 }
 
 //Write the FragmentGraph to file (formerly the transition output - without feature details)
-void FragmentGraph::writeFullGraph( std::ostream &out ){
+void FragmentGraph::writeFullGraph( std::ostream &out ) const{
 
 	//Fragments
 	out << fragments.size() << std::endl;
-	std::vector<Fragment>::iterator it = fragments.begin();
-	for( ; it != fragments.end(); ++it ){
-		out << it->getId() << " ";
-		out << *it->getIonSmiles() << " ";
-		out << std::setprecision(10) << it->getMass() << std::endl;
-	}
+	writeFragmentsOnly( out );
 	out << std::endl;
 
 	//Transitions
-	std::vector<Transition>::iterator itt = transitions.begin();
+	std::vector<Transition>::const_iterator itt = transitions.begin();
 	for( ; itt != transitions.end(); ++itt ){
 		out << itt->getFromId() << " ";
 		out << itt->getToId() << " ";
-		out << RDKit::MolToSmiles( *(itt->getNeutralLoss()->mol.get()) ) << std::endl;
+		out << *itt->getNLSmiles() << std::endl;
+	}
+}
+
+void EvidenceFragmentGraph::writeFragmentsOnly( std::ostream &out ) const{
+
+	std::vector<EvidenceFragment>::const_iterator it = fragments.begin();
+	for( ; it != fragments.end(); ++it ){
+		out << it->getId() << " ";
+		out << std::setprecision(10) << it->getMass() << " ";
+		out << *it->getIonSmiles() << std::endl;
+	}
+}
+
+//Write the FragmentGraph to file (formerly the transition output - without feature details)
+void EvidenceFragmentGraph::writeFullGraph( std::ostream &out ) const{
+
+	//Fragments
+	out << fragments.size() << std::endl;
+	writeFragmentsOnly( out );
+	out << std::endl;
+
+	//Transitions
+	std::vector<Transition>::const_iterator itt = transitions.begin();
+	for( ; itt != transitions.end(); ++itt ){
+		out << itt->getFromId() << " ";
+		out << itt->getToId() << " ";
+		out << *itt->getNLSmiles() << std::endl;
 	}
 }
 
@@ -270,3 +315,27 @@ void FragmentGraph::clearAllSmiles(){
 	std::vector<Fragment>::iterator it = fragments.begin();
 	for( ; it != fragments.end(); ++it ) it->clearSmiles();
 };
+
+bool EvidenceFragmentGraph::fragmentIsRedundant( unsigned int fidx, std::vector<int> &annotated_flags, std::vector<int> &direct_flags ) const{
+
+	if( annotated_flags[fidx] ) return false;
+	std::vector<int>::const_iterator it = from_id_tmap[fidx].begin();
+	for( ; it != from_id_tmap[fidx].end(); ++it ){
+		int cidx = transitions[*it].getToId();
+		if( !fragmentIsRedundant( cidx, annotated_flags, direct_flags ) && !direct_flags[cidx] ) return false;
+	}
+	return true;
+}
+
+void EvidenceFragmentGraph::setFlagsForDirectPaths(std::vector<int> &direct_flags, unsigned int fidx, std::vector<int> &annotated_flags ) const{
+	
+	if( !annotated_flags[fidx] ) return;
+	direct_flags[fidx] = 1;
+	std::vector<int>::const_iterator it = from_id_tmap[fidx].begin();
+	for( ; it != from_id_tmap[fidx].end(); ++it ){
+		int cidx = transitions[*it].getToId();
+		setFlagsForDirectPaths( direct_flags, cidx, annotated_flags );  
+	}
+}
+
+

@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 	std::ostream out(buf);
 
 	//Write the spectra to output
-	moldata.outputPredictedSpectra(out);
+	moldata.outputSpectra(out, "Predicted");
 	if( !to_stdout ) of.close();
 
 	return(0);    
