@@ -23,6 +23,11 @@
 
 typedef boost::shared_ptr<RDKit::ROMol> romol_ptr_t;
 
+struct beliefs_t{
+	std::vector<std::vector<double> > tn;	//Transition:  Indexed by transition, then depth
+	std::vector<std::vector<double> > ps;	//Persistence: Indexed by fragment, then depth
+};
+
 //Helper Function to figure out the mass tolerance to use based on
 //absolute and ppm tolerances for the current mass
 double getMassTol( double abs_tol, double ppm_tol, double mass );

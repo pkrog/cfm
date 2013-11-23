@@ -35,6 +35,9 @@ public:
 	Fragment( std::string &a_ion_smiles, std::string &a_reduced_smiles, int an_id, double a_mass ) : 
 		id( an_id ), ion_smiles(a_ion_smiles), reduced_smiles( a_reduced_smiles ), mass( a_mass ){};
 
+	Fragment( const Fragment &a_fragment, int an_id ) :
+		id( an_id ), ion_smiles(*a_fragment.getIonSmiles()), reduced_smiles( *a_fragment.getReducedSmiles() ), mass( a_fragment.getMass() ){};
+
 	//Access Functions
 	double getMass() const { return mass; };
 	int getId() const { return id; };
@@ -43,28 +46,51 @@ public:
 	const std::string *getIonSmiles() const {return &ion_smiles; };
 	void clearSmiles(){reduced_smiles = std::string(); ion_smiles = std::string();};
 
-private:
+protected:
 	int id;
 	std::string reduced_smiles;	//Reduced version of the smiles string (just backbone)
 	std::string ion_smiles;		//Full ion smiles (for writing out if called for)
 	double mass;
 };
 
+class EvidenceFragment : public Fragment{
+public:
+	EvidenceFragment( const Fragment &a_fragment, int an_id, const std::vector<double> &a_evidence ) :
+		Fragment( a_fragment, an_id ), evidence(a_evidence) {};
+	EvidenceFragment( const EvidenceFragment &a_fragment, int an_id ) :
+		Fragment( a_fragment, an_id ), evidence(a_fragment.evidence) {};
+
+	double getEvidence(int energy) const{ return evidence[energy];};
+
+protected:
+	std::vector<double> evidence;	//For recording the belief that this fragment
+								//occurs at each energy level (in an evidence
+								//fragment graph - used in peak annotation)
+
+};
+
 //Class for storing possible transitions between fragments
 class Transition{
 
 public:
+	//Default constructor
+	Transition(){};
+	
 	//Basic constructor
-	Transition( int a_from_id, int a_to_id, RootedROMolPtr &a_nl, RootedROMolPtr &an_ion  ) :
-		from_id( a_from_id), to_id( a_to_id ), nl( a_nl ), ion( an_ion ) {}; 
+	Transition( int a_from_id, int a_to_id, RootedROMolPtr &a_nl, RootedROMolPtr &an_ion  );
 
 	//Alternative constructor that finds the root atoms and sets the
 	//root pointers appropriately
 	Transition( int a_from_id, int a_to_id, romol_ptr_t &a_nl, romol_ptr_t &an_ion  );
 	
+	//Direct constructor that bipasses the mols altogether and directly sets the nl_smiles
+	Transition( int a_from_id, int a_to_id, const std::string *a_nl_smiles ) :
+		from_id( a_from_id ), to_id( a_to_id ), nl_smiles( *a_nl_smiles ){};
+
 	//Access Functions	
 	int getFromId() const { return from_id; };
 	int getToId() const { return to_id; };
+	const std::string *getNLSmiles() const { return &nl_smiles; };
 	const RootedROMolPtr *getNeutralLoss() const { return &nl; };
 	void deleteNeutralLoss(){ nl.mol.reset(); nl = RootedROMolPtr(); };
 	const RootedROMolPtr *getIon() const { return &ion; };
@@ -77,6 +103,7 @@ public:
 private:
 	int from_id;
 	int to_id;
+	std::string nl_smiles;
 	RootedROMolPtr nl;
 	RootedROMolPtr ion;	//We store the ion on the transition to
 						//allow for different roots - the fragment stores
@@ -109,10 +136,10 @@ public:
 	int addToGraphWithThetas(romol_ptr_t ion, romol_ptr_t nl, const std::vector<double> *thetas, int parentid );
 
 	//Write the Fragments only to file (formerly the backtrack output - without extra details)
-	void writeFragmentsOnly( std::ostream &out );
+	void writeFragmentsOnly( std::ostream &out ) const;
 
 	//Write the FragmentGraph to file (formerly the transition output - without feature details)
-	void writeFullGraph( std::ostream &out );
+	void writeFullGraph( std::ostream &out ) const;
 
 	//Access functions
 	unsigned int getNumTransitions() const { return transitions.size(); };
@@ -126,7 +153,7 @@ public:
 	void deleteMolsForTransitionAtIdx( int index );
 	void clearAllSmiles();
 
-private:
+protected:
 	std::vector<Fragment> fragments;
 	std::vector<Transition> transitions;
 	tmap_t from_id_tmap;	//Mapping between from_id and transitions with that from_id
@@ -152,5 +179,24 @@ private:
 	int findMatchingTransition( int from_id, int to_id );
 };
 
+class EvidenceFragmentGraph : public FragmentGraph{
+public:
+	const EvidenceFragment *getFragmentAtIdx( int index ) const { return &(fragments[index]); };
+	unsigned int getNumFragments() const { return fragments.size(); };
+	void writeFragmentsOnly( std::ostream &out ) const;
+	void writeFullGraph( std::ostream &out ) const;
+
+	//Alternative graph builder used to build fragments from fragments and transitions of an existing graph
+	// Note: no checks for duplicates, assumes the added fragments have already been filtered.
+	int addToGraphDirectNoCheck( const EvidenceFragment &fragment, const Transition *transition, int parentid );
+	void addTransition(int from_id, int to_id, const std::string *nl_smiles );
+
+	//Utility functions used in annotation 
+	bool fragmentIsRedundant( unsigned int fidx, std::vector<int> &annotated_flags, std::vector<int> &direct_flags ) const;
+	void setFlagsForDirectPaths(std::vector<int> &direct_flags, unsigned int fidx, std::vector<int> &annotated_flags ) const;
+
+private:
+	std::vector<EvidenceFragment> fragments;
+};
 
 #endif // __FRAGTREE_H__

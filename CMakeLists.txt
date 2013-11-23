@@ -79,3 +79,6 @@ add_subdirectory( cfm-predict )
 
 #Identifier
 add_subdirectory( cfm-id )
+
+#Annotater
+add_subdirectory( cfm-annotate )

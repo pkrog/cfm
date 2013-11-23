@@ -30,6 +30,12 @@
 #include "Config.h"
 #include "Message.h"
 
+typedef std::pair<int,double> annotation_t; //<Fragment Id, Score>
+
+static bool sort_annotations_by_score(const annotation_t &u, const annotation_t &v){
+   return u.second > v.second;
+}
+
 class Peak{
 public:
 	Peak(){};
@@ -37,6 +43,7 @@ public:
 	  mass(a_mass), intensity(an_intensity) {};
 	double mass;
 	double intensity;
+	std::vector<annotation_t> annotations; 
 };
 
 typedef std::vector<Peak> Spectrum;
@@ -51,15 +58,16 @@ static bool sort_peaks_by_mass(const Peak &u, const Peak &v){
 
 class MolData{
 public:
-	MolData( std::string &an_id, std::string &an_smiles_or_inchi, int a_group )
-		{ id = an_id; smiles_or_inchi = an_smiles_or_inchi; group = a_group; graph_computed = 0; };
-	MolData( std::string &an_id, std::string &an_smiles_or_inchi )
-		{ id = an_id; smiles_or_inchi = an_smiles_or_inchi; group = 0; graph_computed = 0; };
-	MolData( const char *an_id, const char *an_smiles_or_inchi )
-		{ id = an_id, smiles_or_inchi = an_smiles_or_inchi; group = 0; graph_computed = 0; };
-
+	MolData( std::string &an_id, std::string &an_smiles_or_inchi, int a_group ) :
+	  id(an_id), smiles_or_inchi(an_smiles_or_inchi), group(a_group), graph_computed(0), ev_graph_computed(0) {}; 
+	MolData( std::string &an_id, std::string &an_smiles_or_inchi ) :
+	  id(an_id), smiles_or_inchi(an_smiles_or_inchi), group(0), graph_computed(0), ev_graph_computed(0) {}; 
+	MolData( const char *an_id, const char *an_smiles_or_inchi ) :
+	  id(an_id), smiles_or_inchi(an_smiles_or_inchi), group(0), graph_computed(0), ev_graph_computed(0) {}; 
+		
 	//Access functions
 	const FragmentGraph *getFragmentGraph(){return fg;};
+	const EvidenceFragmentGraph *getEvidenceFragmentGraph(){return ev_fg;};
 	const Spectrum *getSpectrum(int energy){return &(spectra[energy]);};
 	const std::vector<Spectrum> *getSpectra(){return &spectra;};
 	const Spectrum *getPredictedSpectrum(int energy){return &(predicted_spectra[energy]);};
@@ -79,12 +87,12 @@ public:
 	void removePeaksWithNoFragment( double abs_tol, double ppm_tol );
 	void writePredictedSpectraToFile( std::string &filename );
 	void writeFullEnumerationSpectrumToFile( std::string &filename );
-	void outputPredictedSpectra( std::ostream &out );
+	void outputSpectra( std::ostream &out, const char*spec_type );
 	void createInterpolatedSpectra( config_t &cfg );
 	
 	//More memory efficient alternative to calling computeFragmentGraph and 
 	//then computeFeatureVectors with deleteMols = true
-	void computeFragmentGraphAndReplaceMolsWithFVs( int depth, FeatureCalculator *fc);
+	void computeFragmentGraphAndReplaceMolsWithFVs( int depth, FeatureCalculator *fc, bool retain_smiles = false);
 
 	//Replaces computeFragmentGraph, computeFeatureVectors and computeTransitionThetas
 	//below (delteMols = true), pruning according to prob_thresh_for_prune value.
@@ -97,6 +105,13 @@ public:
 	void computeTransitionThetas( Param &param );
 	void computeTransitionProbabilities();
 	void computePredictedSpectra( Param &param, config_t &cfg, bool postprocess = false, bool use_existing_thetas = false );
+	
+	//Function to compute a much reduced fragment graph containing only those
+	//fragmentations as actually occur in the spectra, based on a computed set of beliefs
+	//thresholding inclusion in the graph by the provided belief_thresh value (log domain)
+	void computeEvidenceFragmentGraph( beliefs_t *beliefs, double log_belief_thresh, config_t *cfg );
+	void annotatePeaks(double abs_tol, double ppm_tol, bool prune_deadends = true);
+
 	~MolData();
 
 protected:	//These features are protected rather than private for access during tests.
@@ -104,7 +119,9 @@ protected:	//These features are protected rather than private for access during 
 	std::string id;
 	std::string smiles_or_inchi;
 	FragmentGraph *fg;
+	EvidenceFragmentGraph *ev_fg;
 	int graph_computed;
+	int ev_graph_computed;
 	std::vector<Spectrum> spectra;
 	std::vector<Spectrum> predicted_spectra;
 	std::vector<FeatureVector *> fvs;
@@ -116,8 +133,10 @@ protected:	//These features are protected rather than private for access during 
 
 	void computePredictedSingleEnergySpectra( Param &param, config_t &cfg, bool postprocess, bool use_existing_thetas );
 	void translatePeaksFromMsgToSpectra( Spectrum &out_spec, Message *msg );
+	void computeFragmentEvidenceValues(std::vector<double> &evidence, int frag_idx, const beliefs_t *beliefs, config_t *cfg );
 	static void postprocessSpectrum( Spectrum &spectrum );
 	static void normalizeAndSortSpectrum( Spectrum &spectrum );
+
 };
 
 #endif // __MOLDATA_H__

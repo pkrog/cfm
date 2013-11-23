@@ -40,11 +40,6 @@ static const int IPFP_WITH_MOD_ALGORITHM = 2;
 
 struct config_t;
 
-struct beliefs_t{
-	std::vector<std::vector<double> > tn;	//Transition:  Indexed by transition, then depth
-	std::vector<std::vector<double> > ps;	//Persistence: Indexed by fragment, then depth
-};
-
 typedef std::vector<std::vector<double> > spec_factor_t; 
 
 //Exception to throw when the input feature configuration file is invalid 
