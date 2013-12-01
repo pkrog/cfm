@@ -41,10 +41,15 @@ else ()
 endif ()
 
 # LPSolve
-set ( LPSOLVE_INCLUDE_DIR "C:/" CACHE STRING "What is the root directory for LPSolve?" )
-include (FindLPSolve)
+set ( LPSOLVE_INCLUDE_DIR "" CACHE STRING "Where are the LPSolve headers?" )
+set ( LPSOLVE_LIBRARY_DIR "" CACHE STRING "Where are the LPSolve libraries?" )
 include_directories ( ${LPSOLVE_INCLUDE_DIR} )
-#link_directories ( ${LPSOLVE_INCLUDE_DIR} )
+link_directories ( ${LPSOLVE_LIBRARY_DIR} )
+find_library(LPSOLVE_LIBRARY NAMES lpsolve55 PATHS ${LPSOLVE_LIBRARY_DIR})
+if (NOT LPSOLVE_LIBRARY)
+  MESSAGE(FATAL_ERROR "Cannot find LPSOLVE libraries!")
+endif (NOT LPSOLVE_LIBRARY)
+mark_as_advanced( LPSOLVE_LIBRARY )
 
 find_package( Threads )
 
