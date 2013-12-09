@@ -138,6 +138,9 @@ void Param::saveToFile( std::string &filename ){
 		std::cout << "Warning: Trouble opening parameter file" << std::endl;
 	}else{
 
+		//Use sparse format
+		out << "SPARSE" << std::endl;
+
 		//Print out the number of feature names
 		out << feature_list.size() << std::endl;
 
@@ -153,13 +156,23 @@ void Param::saveToFile( std::string &filename ){
 		//Print out the total length of the weights
 		out << weights.size() << std::endl;
 
-		//Print out all the weights (in lines of 50)
-		out << std::setprecision(6);
+		//Check the number of non-zero weights
 		std::vector<double>::iterator itt = weights.begin();
-		for( int count = 0; itt != weights.end(); ++itt, count++ ){ 
-			out << *itt;
-			if( count % 50 == 49 ) out << std::endl;
-			else out << " ";
+		int num_used = 0;
+		for( ; itt != weights.end(); ++itt )
+			num_used += ( *itt != 0 );
+		out << num_used << std::endl;
+
+		//Print out the used weights (in lines of 20)
+		out << std::setprecision(6);
+		itt = weights.begin();
+		for( int count = 0, idx = 0; itt != weights.end(); ++itt, idx++ ){ 
+			if( *itt != 0 ){
+				out << idx << " " << *itt;
+				if( count % 20 == 19 ) out << std::endl;
+				else out << " ";
+				count++;
+			}
 		}
 		out << std::endl;
 		out.close();
@@ -173,8 +186,15 @@ Param::Param( std::string &filename ){
 
 	if(!ifs) std::cout << "Could not open file " << filename << std::endl;
 	
-	//Get the number of feature names
+	//Check for sparse representation
 	getline( ifs, line );
+	bool sparse = false;
+	if( line[0] == 'S' ){ 
+		sparse = true;
+		getline( ifs, line );
+	}
+
+	//Get the number of feature names
 	int num_features = atoi(line.c_str());
 
 	//Get the feature names
@@ -193,18 +213,41 @@ Param::Param( std::string &filename ){
 	//Get the number of weights
 	getline( ifs, line );
 	int num_weights = atoi(line.c_str());
-	weights.resize( num_weights );
+	weights.resize( num_weights, 0.0 );
 	
-	//Get the weights
-	double weight;
-	int count = 0;
-	while( count < num_weights ){
+	if(sparse){	//SPARSE FORMAT
+		
+		//Get the number of used weights
 		getline( ifs, line );
-		std::stringstream ss2(line);
-		int num_on_line = std::min( num_weights - count, 50);
-		for( int i = 0; i < num_on_line; i++ ){
-			ss2 >> weight;
-			weights[count++] = weight;
+		int num_used_weights = atoi(line.c_str());
+		
+		//Get the weights
+		double weight;
+		int count = 0, idx = -1;
+		while( count < num_used_weights ){
+			getline( ifs, line );
+			std::stringstream ss2(line);
+			int num_on_line = std::min( num_weights - count, 20);
+			for( int i = 0; i < num_on_line; i++ ){
+				ss2 >> idx >> weight;
+				weights[idx] = weight;
+				count++;
+			}
+		}
+	}
+	else{	//NON-SPARSE FORMAT
+		
+		//Get the weights
+		double weight;
+		int count = 0;
+		while( count < num_weights ){
+			getline( ifs, line );
+			std::stringstream ss2(line);
+			int num_on_line = std::min( num_weights - count, 50);
+			for( int i = 0; i < num_on_line; i++ ){
+				ss2 >> weight;
+				weights[count++] = weight;
+			}
 		}
 	}
 	ifs.close();
