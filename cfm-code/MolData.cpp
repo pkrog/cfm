@@ -294,7 +294,7 @@ void MolData::computeTransitionProbabilities(){
 	return;
 }
 
-void MolData::readInSpectraFromFile( std::string &peak_filename, bool readToPredicted ){
+void MolData::readInSpectraFromFile( const std::string &peak_filename, bool readToPredicted ){
 
 	//Set the spectra that we are writing to
 	std::vector<Spectrum> *spec_dest = &spectra;
