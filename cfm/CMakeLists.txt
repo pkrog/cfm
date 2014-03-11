@@ -87,3 +87,5 @@ add_subdirectory( cfm-id )
 
 #Annotater
 add_subdirectory( cfm-annotate )
+
+add_subdirectory( cfm-id-precomputed )

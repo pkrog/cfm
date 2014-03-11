@@ -83,7 +83,7 @@ public:
 	std::string getId(){ return id; };
 	std::string getSmilesOrInchi(){ return smiles_or_inchi; };
 
-	void readInSpectraFromFile( std::string &filename, bool readToPredicted = false );
+	void readInSpectraFromFile( const std::string &filename, bool readToPredicted = false );
 	void removePeaksWithNoFragment( double abs_tol, double ppm_tol );
 	void writePredictedSpectraToFile( std::string &filename );
 	void writeFullEnumerationSpectrumToFile( std::string &filename );

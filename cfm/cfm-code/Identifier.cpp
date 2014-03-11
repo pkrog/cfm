@@ -24,6 +24,10 @@ static bool sort_candidates(const Candidate &u, const Candidate &v){
 	return u.getScore() > v.getScore();
 }
 
+static bool sort_pcandidates(const PrecomputedCandidate &u, const PrecomputedCandidate &v){
+	return u.getScore() > v.getScore();
+}
+
 //Ranks the list of candidates according to the match between their predicted spectra and the target
 void Identifier::rankCandidatesForSpecMatch( std::vector<Candidate> &candidates, const std::vector<Spectrum> *target_spectra ){
 
@@ -33,7 +37,6 @@ void Identifier::rankCandidatesForSpecMatch( std::vector<Candidate> &candidates,
 	
 		double score = 0.0;
 		try{
-
 
 			//Create the MolData structure with the input
 			MolData moldata( it->getId()->c_str(), it->getSmilesOrInchi()->c_str() );
@@ -65,3 +68,31 @@ void Identifier::rankCandidatesForSpecMatch( std::vector<Candidate> &candidates,
 
 }
 
+
+//Ranks the list of candidates according to the match between their predicted spectra and the target
+void Identifier::rankPrecomputedCandidatesForSpecMatch( std::vector<PrecomputedCandidate> &candidates, const std::vector<Spectrum> *target_spectra ){
+
+	//Compute the scores for each candidate
+	std::vector<PrecomputedCandidate>::iterator it = candidates.begin();
+	for( ; it != candidates.end(); ++it ){
+	
+		double score = 0.0;
+
+		//Create a temporary MolData structure
+		MolData moldata( it->getId()->c_str(), "CCC" );
+	
+		//Load the predicted spectra
+		moldata.readInSpectraFromFile(it->getSpectrumFilename()->c_str(), true);
+
+		//Compute the score for the current candidate:
+		// - The score is the sum of the comparison scores between all the target and predicted spectra
+		for( unsigned int energy = 0; energy < target_spectra->size(); energy++ )
+			score += cmp->computeScore( &((*target_spectra)[energy]), moldata.getPredictedSpectrum(energy) );
+
+		it->setScore(score);
+	}
+
+	//Sort the candidates by decreasing score
+	std::sort( candidates.begin(), candidates.end(), sort_pcandidates );
+
+}
