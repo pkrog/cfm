@@ -37,14 +37,18 @@ int main(int argc, char *argv[])
 	std::string param_filename = "none";
 	std::string config_filename = "param_config.txt";
 	int num_highest = -1;
+	double ppm_mass_tol = DEFAULT_PPM_MASS_TOL;
+	double abs_mass_tol = DEFAULT_ABS_MASS_TOL;
 
-	if (argc < 3 || argc > 6 )
+	if (argc < 3 || argc > 8 )
 	{
 		std::cout << std::endl << std::endl;
-		std::cout << std::endl << "Usage: cfm-annotate.exe <smiles_or_inchi> <spectrum_file> <param_filename> <config_filename> <output_filename>" << std::endl << std::endl << std::endl;
+		std::cout << std::endl << "Usage: cfm-annotate.exe <smiles_or_inchi> <spectrum_file> <ppm_mass_tol> <abs_mass_tol> <param_filename> <config_filename> <output_filename>" << std::endl << std::endl << std::endl;
 		std::cout << std::endl << "smiles_or_inchi: " << std::endl << "The smiles or Inchi string for the input molecule" << std::endl;  
 		std::cout << std::endl << "spectrum_file:" << std::endl << "The filename where the input spectra can be found as a list of peaks 'mass intensity' delimited by lines, with either 'low','med' and 'high' lines beginning spectra of different energy levels, or 'energy0', 'energy1', etc. ";
 		std::cout << "e.g." << std::endl << "energy0" << std::endl << "65.02 40.0" << std::endl << "86.11 60.0" << std::endl << "energy1" << std::endl << "65.02 100.0 ... etc" << std::endl;
+		std::cout << std::endl << "ppm_mass_tol (opt):" << std::endl << "The mass tolerance in ppm to use when matching peaks - will use higher resulting tolerance of ppm and abs (if not given defaults to value in the config file, or 10ppm if not specified there)" << std::endl;
+		std::cout << std::endl << "abs_mass_tol (opt):" << std::endl << "The mass tolerance in abs Da to use when matching peaks - will use higher resulting tolerance of ppm and abs ( if not given defaults to value in the config file, 0.01Da if not specified there)" << std::endl;
 		std::cout << std::endl << "param_filename (opt):" << std::endl << "The filename where the parameters of a trained cfm model can be found (if not given or set to 'none', assumes no parameters set, so all breaks equally likely)" << std::endl;
 		std::cout << std::endl << "config_filename (opt):" << std::endl << "The filename where the configuration parameters of the cfm model can be found (if not given, assumes param_config.txt in current directory)" << std::endl;
 		std::cout << std::endl << "output_filename (opt):" << std::endl << "The filename of the output file to write to (if not given, prints to stdout)" << std::endl;
@@ -53,10 +57,12 @@ int main(int argc, char *argv[])
 
 	std::string smiles_or_inchi = argv[1];
 	std::string spectrum_file = argv[2];
-	if( argc > 3 ) param_filename = argv[3];
-	if( argc > 4 ) config_filename = argv[4];
-	if( argc > 5 ){
-		output_filename = argv[5];
+	if( argc > 3 ) ppm_mass_tol = atof(argv[3]);
+	if( argc > 4 ) abs_mass_tol = atof(argv[4]);
+	if( argc > 5 ) param_filename = argv[5];
+	if( argc > 6 ) config_filename = argv[6];
+	if( argc > 7 ){
+		output_filename = argv[7];
 		to_stdout = false;
 	}
 
@@ -67,6 +73,11 @@ int main(int argc, char *argv[])
 	//Initialise model configuration
 	config_t cfg;
 	initConfig( cfg, config_filename );
+
+	//If the mass tolerances are specified on the command line, overwrite the
+	//ones in the config file
+	if( argc > 3 ) cfg.ppm_mass_tol = ppm_mass_tol;
+	if( argc > 4 ) cfg.abs_mass_tol = abs_mass_tol;
 
 	//Read in the parameters or create a blank set
 	Param *param;
