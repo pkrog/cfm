@@ -63,7 +63,7 @@ void MolData::computeFragmentGraphAndReplaceMolsWithFVs( int depth, FeatureCalcu
 
 }
 
-void MolData::computeLikelyFragmentGraphAndSetThetas( Param *param, config_t *cfg, double prob_thresh_for_prune ){
+void MolData::computeLikelyFragmentGraphAndSetThetas( Param *param, config_t *cfg, double prob_thresh_for_prune, bool retain_smiles  ){
 	
 	//Compute the fragment graph, replacing the transition molecules with feature vectors
 	LikelyFragmentGraphGenerator fgen(param, cfg, prob_thresh_for_prune ); 
@@ -83,7 +83,7 @@ void MolData::computeLikelyFragmentGraphAndSetThetas( Param *param, config_t *cf
 	}
 	
 	//Delete all the fragment smiles (we only need these while we're computing the graph)
-	fg->clearAllSmiles();
+	if(!retain_smiles) fg->clearAllSmiles();
 
 }
 
@@ -174,7 +174,7 @@ void MolData::annotatePeaks( double abs_tol, double ppm_tol, bool prune_deadends
 			
 				const EvidenceFragment *f = ev_fg->getFragmentAtIdx(fidx);
 				if( fabs( f->getMass() - it->mass ) <= mass_tol ){
-					it->annotations.push_back(annotation_t(f->getId(),f->getEvidence(energy)));	
+					it->annotations.push_back(annotation_t(f->getId(),exp(f->getEvidence(energy))));	
 					frag_flags[fidx] = 1;
 				}
 			}
@@ -182,12 +182,8 @@ void MolData::annotatePeaks( double abs_tol, double ppm_tol, bool prune_deadends
 	}
 
 	//Sort the annotations by evidence score
-	for( int energy = 0; energy < spectra.size(); energy++ ){
-		Spectrum::iterator it = spectra[energy].begin();
-		for( ; it != spectra[energy].end();  ++it ){
-			std::sort( it->annotations.begin(), it->annotations.end(), sort_annotations_by_score );
-		}
-	}
+	for( int energy = 0; energy < spectra.size(); energy++ )
+		sortAndNormalizeAnnotations( spectra[energy] );
 
 	if(!prune_deadends) return;
 
@@ -311,8 +307,7 @@ void MolData::readInSpectraFromFile( const std::string &peak_filename, bool read
 	int first = 1;
 	while( ifs.good() ){
 		getline( ifs, line );
-		if( line == "" ) continue;
-		
+		if( line.size() < 3 ) continue;
 		//Check for the energy specifier - start a new spectrum if found 
 		//or start one anyway if there is no energy specifier
 		if( line.substr(0,3) == "low" 
@@ -502,20 +497,24 @@ void MolData::computePredictedSingleEnergySpectra( Param &param, config_t &cfg, 
 void MolData::translatePeaksFromMsgToSpectra( Spectrum &out_spec, Message *msg ){
 
 	//Create the peaks
-	std::map<double, double> peak_probs;
+	std::map<double, Peak> peak_probs;
 	Message::const_iterator itt = msg->begin();
 	for( ; itt != msg->end() ; ++itt ){
 		double mass = fg->getFragmentAtIdx(itt.index())->getMass();
+		double intensity_contrib = exp(*itt);
 		if( peak_probs.find(mass) != peak_probs.end() )
-			peak_probs[mass] += exp(*itt);
+			peak_probs[mass].intensity += intensity_contrib;
 		else
-			peak_probs[mass] = exp(*itt);
+			peak_probs[mass].intensity = intensity_contrib;
+		peak_probs[mass].mass = mass;
+		peak_probs[mass].annotations.push_back( annotation_t(itt.index(),intensity_contrib) );
 	}		
 		
 	//Add the peaks to the spectra
-	std::map<double, double>::iterator itm = peak_probs.begin();
+	std::map<double, Peak>::iterator itm = peak_probs.begin();
 	for( ; itm != peak_probs.end(); ++itm )
-		out_spec.push_back( Peak(itm->first, itm->second*100.0) );
+		out_spec.push_back( itm->second );
+
 }
 
 void MolData::writePredictedSpectraToFile( std::string &filename ){
@@ -576,11 +575,11 @@ void MolData::writeFullEnumerationSpectrumToFile( std::string &filename ){
 }
 
 
-void MolData::outputSpectra( std::ostream &out, const char*spec_type ){
+void MolData::outputSpectra( std::ostream &out, const char*spec_type, bool do_annotate ){
 	
 	std::vector<Spectrum> *spectra_to_output;
 	if(std::string(spec_type) == "Predicted") spectra_to_output = &predicted_spectra;
-	else if(std::string(spec_type) == "Annotated") spectra_to_output = &spectra;
+	else if(std::string(spec_type) == "Experimental") spectra_to_output = &spectra;
 	else std::cout << "Unknown spectrum type to output: " << spec_type << std::endl;
 
 	std::vector<Spectrum>::iterator it = spectra_to_output->begin();
@@ -588,12 +587,21 @@ void MolData::outputSpectra( std::ostream &out, const char*spec_type ){
 		out << "energy" << energy << std::endl;
 
 		Spectrum::iterator itp = it->begin();
-		out << std::setprecision(10);
 		for( ; itp != it->end(); ++itp ){
-			out << itp->mass << " " << itp->intensity;
-			std::vector<annotation_t>::iterator ita = itp->annotations.begin();
-			for( ; ita != itp->annotations.end(); ++ita )
-				out << " " << ita->first; // << " (" << ita->second << ") ";
+			out << std::setprecision(10) << itp->mass << " " << itp->intensity;
+			if(do_annotate){
+				std::stringstream ss_values;
+				ss_values << std::setprecision(5) << "(";
+				std::vector<annotation_t>::iterator ita = itp->annotations.begin();
+				for( ; ita != itp->annotations.end(); ++ita ){
+					out << " " << ita->first;
+					if( ita != itp->annotations.begin() ) ss_values << " ";
+					ss_values << ita->second*100.0;
+				}
+				ss_values << ")";
+				if( itp->annotations.size() > 0 )
+					out << " " << ss_values.str();
+			}
 			out << std::endl;
 		}
 	}
@@ -605,6 +613,7 @@ void MolData::postprocessPredictedSpectra(){
 	for( ; it != predicted_spectra.end(); ++it){
 		postprocessSpectrum( *it );
 		normalizeAndSortSpectrum( *it );
+		sortAndNormalizeAnnotations( *it );
 	}
 }
 
@@ -642,6 +651,22 @@ void MolData::normalizeAndSortSpectrum( Spectrum &spectrum){
 	std::sort( spectrum.begin(), spectrum.end(), sort_peaks_by_mass );
 }
 
+void MolData::sortAndNormalizeAnnotations(Spectrum &spectrum){
+
+	Spectrum::iterator it = spectrum.begin();
+	for( ; it != spectrum.end();  ++it ){
+		//Sort
+		std::sort( it->annotations.begin(), it->annotations.end(), sort_annotations_by_score);
+		
+		//Normalize
+		std::vector<annotation_t>::iterator itt = it->annotations.begin();
+		double total = 0.0;
+		for( ; itt != it->annotations.end(); ++itt ) total += itt->second;
+		double norm = it->intensity/(100.0*total);
+		for( itt = it->annotations.begin(); itt != it->annotations.end(); ++itt ) 
+			itt->second *= norm;
+	}
+}
 MolData::~MolData(){
 
 	if( graph_computed ) delete fg;
