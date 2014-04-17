@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
 	std::ostream out(buf);
 
 	//Output the peak annotations and fragment graph
-	moldata.outputSpectra( out, "Annotated" );
+	moldata.outputSpectra( out, "Experimental", true );
 	out << std::endl;
 	moldata.getEvidenceFragmentGraph()->writeFullGraph(out);
 

@@ -87,7 +87,7 @@ public:
 	void removePeaksWithNoFragment( double abs_tol, double ppm_tol );
 	void writePredictedSpectraToFile( std::string &filename );
 	void writeFullEnumerationSpectrumToFile( std::string &filename );
-	void outputSpectra( std::ostream &out, const char*spec_type );
+	void outputSpectra( std::ostream &out, const char*spec_type, bool do_annotate = false );
 	void createInterpolatedSpectra( config_t &cfg );
 	
 	//More memory efficient alternative to calling computeFragmentGraph and 
@@ -96,7 +96,7 @@ public:
 
 	//Replaces computeFragmentGraph, computeFeatureVectors and computeTransitionThetas
 	//below (delteMols = true), pruning according to prob_thresh_for_prune value.
-	void computeLikelyFragmentGraphAndSetThetas( Param *param, config_t *cfg, double prob_thresh_for_prune );
+	void computeLikelyFragmentGraphAndSetThetas( Param *param, config_t *cfg, double prob_thresh_for_prune, bool retain_smiles = false );
 
 	//Note that the following should be called in this order
 	//since each one assumes all previous have already been called.
@@ -136,6 +136,7 @@ protected:	//These features are protected rather than private for access during 
 	void computeFragmentEvidenceValues(std::vector<double> &evidence, int frag_idx, const beliefs_t *beliefs, config_t *cfg );
 	static void postprocessSpectrum( Spectrum &spectrum );
 	static void normalizeAndSortSpectrum( Spectrum &spectrum );
+	static void sortAndNormalizeAnnotations(Spectrum &spectrum);
 
 };
 
