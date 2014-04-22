@@ -11,6 +11,7 @@
 
 #include "ipfp_test.h"
 #include "Config.h"
+#include "FragmentTreeNode.h"
 
 #include <boost/filesystem.hpp>
 #include <GraphMol/SmilesParse/SmilesParse.h>
@@ -21,21 +22,23 @@ class IPFPTestMolConverge : public MolData {
 public:
 	IPFPTestMolConverge() : MolData("IPFP Test Mol Converge Case", ""){
 	
+		setIonizationMode(false);
+
 		//Create a molecule based on what was previously in test_bn_transition_ipfp.txt
-		fg = new FragmentGraph();
+		(*fg) = new FragmentGraph();
 		romol_ptr_t basic_nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl, -1 ); //id = 0
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl, 0 ); // id = 1, 0 -> 1
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl, 0 ); //id = 2, 0 -> 2
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, 2 ); // id = 3, 2 -> 3
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl, -1, -1, false), -1 ); //id = 0
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl, -1, -1, false), 0 ); // id = 1, 0 -> 1
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl, -1, -1, false), 0 ); //id = 2, 0 -> 2
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, -1, -1, false), 2 ); // id = 3, 2 -> 3
 
 		//Set thetas/transition probs to match matlab reference2
-		thetas.resize( 3 );
+		(*thetas).resize( 3 );
 		for( int energy = 0; energy < 3; energy++ ){
-			thetas[energy].resize( fg->getNumTransitions() );
-			thetas[energy][0] = 1.386294361119891;	//0->1
-			thetas[energy][1] = 2.456735772821304;	//0->2
-			thetas[energy][2] = 0.0;	//2->3
+			(*thetas)[energy].resize( (*fg)->getNumTransitions() );
+			(*thetas)[energy][0] = 1.386294361119891;	//0->1
+			(*thetas)[energy][1] = 2.456735772821304;	//0->2
+			(*thetas)[energy][2] = 0.0;	//2->3
 		}
 		computeTransitionProbabilities();
 
@@ -56,22 +59,24 @@ public:
 class IPFPTestMolNonConverge : public MolData {
 public:
 	IPFPTestMolNonConverge() : MolData("IPFP Test Mol Non-Converge Case", ""){
-	
+
+		setIonizationMode(false);
+
 		//Create a molecule based on what was previously in test_bn_transition_ipfp_nonconverge.txt
-		fg = new FragmentGraph();
+		(*fg) = new FragmentGraph();
 		romol_ptr_t basic_nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl, -1 ); //id = 0
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl, 0 ); // id = 1, 0 -> 1
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl, 0 ); //id = 2, 0 -> 2
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, 2 ); // id = 3, 2 -> 3
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl, -1, -1, false), -1 ); //id = 0
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl, -1, -1, false), 0 ); // id = 1, 0 -> 1
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl, -1, -1, false), 0 ); //id = 2, 0 -> 2
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, -1, -1, false), 2 ); // id = 3, 2 -> 3
 
 		//Set thetas/transition probs to match matlab reference2
-		thetas.resize( 3 );
+		(*thetas).resize( 3 );
 		for( int energy = 0; energy < 3; energy++ ){
-			thetas[energy].resize( fg->getNumTransitions() );
-			thetas[energy][0] = 1.386294361119891;	//0->1
-			thetas[energy][1] = 2.456735772821304;	//0->2
-			thetas[energy][2] = 0.0;	//2->3
+			(*thetas)[energy].resize( (*fg)->getNumTransitions() );
+			(*thetas)[energy][0] = 1.386294361119891;	//0->1
+			(*thetas)[energy][1] = 2.456735772821304;	//0->2
+			(*thetas)[energy][2] = 0.0;	//2->3
 		}
 		computeTransitionProbabilities();
 
@@ -94,24 +99,26 @@ class IPFPTestMolSharedMass : public MolData {
 public:
 	IPFPTestMolSharedMass() : MolData("IPFP Test Mol Shared Mass Case", ""){
 	
+		setIonizationMode(false);
+
 		//Create a molecule based on what was previously in test_bn_transition_ipfp_sharedmass.txt
-		fg = new FragmentGraph();
+		(*fg) = new FragmentGraph();
 		romol_ptr_t basic_nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl, -1 ); //id = 0
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl, 0 ); // id = 1, 0 -> 1
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl, 0 ); //id = 2, 0 -> 2
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, 2 ); // id = 3, 2 -> 3
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC[NH2+]C(=O)Cc1ccccc1")) ), basic_nl, 0 ); //id = 4, 0 -> 4
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, 4 ); //  4 -> 3		
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl,-1, -1, false), -1 ); //id = 0
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl,-1, -1, false), 0 ); // id = 1, 0 -> 1
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl,-1, -1, false), 0 ); //id = 2, 0 -> 2
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl,-1, -1, false), 2 ); // id = 3, 2 -> 3
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC[NH2+]C(=O)Cc1ccccc1")) ), basic_nl,-1, -1, false), 0 ); //id = 4, 0 -> 4
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl,-1, -1, false), 4 ); //  4 -> 3		
 
 		//Set thetas/transition probs to match matlab reference2
-		thetas.resize( 3 );
+		(*thetas).resize( 3 );
 		for( int energy = 0; energy < 3; energy++ ){
-			thetas[energy].resize( fg->getNumTransitions() );
-			thetas[energy][0] = 1.386294361119891;	//0->1
-			thetas[energy][1] = 2.456735772821304;	//0->2
-			thetas[energy][2] = 0.0;	//2->3
-			thetas[energy][3] = 5.0;	//0->4
+			(*thetas)[energy].resize( (*fg)->getNumTransitions() );
+			(*thetas)[energy][0] = 1.386294361119891;	//0->1
+			(*thetas)[energy][1] = 2.456735772821304;	//0->2
+			(*thetas)[energy][2] = 0.0;	//2->3
+			(*thetas)[energy][3] = 5.0;	//0->4
 		}
 		computeTransitionProbabilities();
 
@@ -132,23 +139,25 @@ class IPFPTestMolInterpolate : public MolData {
 public:
 	IPFPTestMolInterpolate() : MolData("IPFP Test Mol Interpolation Case", ""){
 	
+		setIonizationMode(false);
+
 		//Create a molecule based on what was previously in test_bn_transition_ipfp_interp.txt
-		fg = new FragmentGraph();
+		(*fg) = new FragmentGraph();
 		romol_ptr_t basic_nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl, -1 ); //id = 0
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl, 0 ); // id = 1, 0 -> 1
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl, 0 ); //id = 2, 0 -> 2
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl, 1 ); //1 -> 2
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, 2 ); // id = 3, 2 -> 3	
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl,-1, -1, false), -1 ); //id = 0
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl,-1, -1, false), 0 ); // id = 1, 0 -> 1
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl,-1, -1, false), 0 ); //id = 2, 0 -> 2
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl,-1, -1, false), 1 ); //1 -> 2
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, -1, -1, false),2 ); // id = 3, 2 -> 3	
 
 		//Set thetas/transition probs to match matlab reference2
-		thetas.resize( 3 );
+		(*thetas).resize( 3 );
 		for( int energy = 0; energy < 3; energy++ ){
-			thetas[energy].resize( fg->getNumTransitions() );
-			thetas[energy][0] = 1.386294361119891;	//0->1
-			thetas[energy][1] = 2.456735772821304;	//0->2
-			thetas[energy][2] = 5.0;	//1->2
-			thetas[energy][3] = 0.0;	//2->3
+			(*thetas)[energy].resize( (*fg)->getNumTransitions() );
+			(*thetas)[energy][0] = 1.386294361119891;	//0->1
+			(*thetas)[energy][1] = 2.456735772821304;	//0->2
+			(*thetas)[energy][2] = 5.0;	//1->2
+			(*thetas)[energy][3] = 0.0;	//2->3
 		}
 		computeTransitionProbabilities();
 
@@ -169,21 +178,23 @@ class IPFPTestMolInterpolateNoDirect : public MolData {
 public:
 	IPFPTestMolInterpolateNoDirect() : MolData("IPFP Test Mol Interpolation with No Direct Case", ""){
 	
+		setIonizationMode(false);
+
 		//Create a molecule based on what was previously in test_bn_transition_ipfp_interp.txt
-		fg = new FragmentGraph();
+		(*fg) = new FragmentGraph();
 		romol_ptr_t basic_nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl, -1 ); //id = 0
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl, 0 ); // id = 1, 0 -> 1
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl, 1 ); //id = 2, 1 -> 2
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, 2 ); // id = 3, 2 -> 3	
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl,-1, -1, false), -1 ); //id = 0
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl,-1, -1, false), 0 ); // id = 1, 0 -> 1
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl, -1, -1, false),1 ); //id = 2, 1 -> 2
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, -1, -1, false),2 ); // id = 3, 2 -> 3	
 
 		//Set thetas/transition probs to match matlab reference2
-		thetas.resize( 3 );
+		(*thetas).resize( 3 );
 		for( int energy = 0; energy < 3; energy++ ){
-			thetas[energy].resize( fg->getNumTransitions() );
-			thetas[energy][0] = 1.386294361119891;	//0->1
-			thetas[energy][1] = 5.0;	//1->2
-			thetas[energy][2] = 0.0;	//2->3
+			(*thetas)[energy].resize( (*fg)->getNumTransitions() );
+			(*thetas)[energy][0] = 1.386294361119891;	//0->1
+			(*thetas)[energy][1] = 5.0;	//1->2
+			(*thetas)[energy][2] = 0.0;	//2->3
 		}
 		computeTransitionProbabilities();
 

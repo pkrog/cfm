@@ -25,7 +25,7 @@
 #include <GraphMol/SmilesParse/SmilesParse.h>
 #include <GraphMol/SanitException.h>
  
-Transition::Transition( int a_from_id, int a_to_id, romol_ptr_t &a_nl, romol_ptr_t &an_ion ){
+Transition::Transition( int a_from_id, int a_to_id, const romol_ptr_t &a_nl, const romol_ptr_t &an_ion ){
 
 	RDKit::Atom *root = NULL, *other_root = NULL;
 	RDKit::Atom *first_atom = an_ion.get()->getAtomWithIdx(0);
@@ -50,7 +50,7 @@ Transition::Transition( int a_from_id, int a_to_id, romol_ptr_t &a_nl, romol_ptr
 	nl_smiles = RDKit::MolToSmiles( *(nl.mol.get()) );
 }
 
-Transition::Transition( int a_from_id, int a_to_id, RootedROMolPtr &a_nl, RootedROMolPtr &an_ion  ) :
+Transition::Transition( int a_from_id, int a_to_id, const RootedROMolPtr &a_nl, const RootedROMolPtr &an_ion  ) :
 	to_id( a_to_id ), from_id( a_from_id ), nl( a_nl ), ion( an_ion ){
 	nl_smiles = RDKit::MolToSmiles( *(nl.mol.get()) );
 }
@@ -61,16 +61,18 @@ Transition::Transition( int a_from_id, int a_to_id, RootedROMolPtr &a_nl, Rooted
 //  -- Update the relevant tmaps
 // Note: If parentid < 0, assumes starting ion, so adds extra H to mass, and
 //       doesn't add transition.
-int FragmentGraph::addToGraph( romol_ptr_t ion, romol_ptr_t nl, int parentid ){
+int FragmentGraph::addToGraph( const FragmentTreeNode &node, int parentid ){
 
 	//If the fragment doesn't exist, add it
-	double mass = getMonoIsotopicMass( ion, (parentid < 0) );
-	int id = addFragmentOrFetchExistingId( ion, mass );
+	int addH = (parentid < 0) && !node.is_negative_mode;
+	int subtractH = (parentid < 0) && node.is_negative_mode;
+	double mass = getMonoIsotopicMass( node.ion, addH, subtractH );
+	int id = addFragmentOrFetchExistingId( node.ion, mass );
 
 	//Add a transition, if one does not exist
 	if( parentid >= 0 && findMatchingTransition( parentid, id ) < 0 ){
 		int idx = transitions.size();
-		transitions.push_back( Transition( parentid, id, nl, ion ) );
+		transitions.push_back( Transition( parentid, id, node.nl, node.ion ) );
 	
 		//Update the tmaps
 		from_id_tmap[parentid].push_back( idx );
@@ -82,16 +84,18 @@ int FragmentGraph::addToGraph( romol_ptr_t ion, romol_ptr_t nl, int parentid ){
 }
 
 //As for previous function, but delete the mols in the transition and compute and store a feature vector instead
-int FragmentGraph::addToGraphAndReplaceMolWithFV( romol_ptr_t ion, romol_ptr_t nl, int parentid, FeatureCalculator *fc ){
+int FragmentGraph::addToGraphAndReplaceMolWithFV( const FragmentTreeNode &node, int parentid, FeatureCalculator *fc ){
 
 	//If the fragment doesn't exist, add it
-	double mass = getMonoIsotopicMass( ion, (parentid < 0) );
-	int id = addFragmentOrFetchExistingId( ion, mass );
+	int addH = (parentid < 0) && !node.is_negative_mode;
+	int subtractH = (parentid < 0) && node.is_negative_mode;
+	double mass = getMonoIsotopicMass( node.ion, addH, subtractH );
+	int id = addFragmentOrFetchExistingId( node.ion, mass );
 
 	//Add a transition, if one does not exist
 	if( parentid >= 0 && findMatchingTransition( parentid, id ) < 0 ){
 		int idx = transitions.size();
-		transitions.push_back( Transition( parentid, id, nl, ion ) );
+		transitions.push_back( Transition( parentid, id, node.nl, node.ion ) );
 	
 		//Update the tmaps
 		from_id_tmap[parentid].push_back( idx );
@@ -108,16 +112,18 @@ int FragmentGraph::addToGraphAndReplaceMolWithFV( romol_ptr_t ion, romol_ptr_t n
 	return id;
 }
 
-int FragmentGraph::addToGraphWithThetas(romol_ptr_t ion, romol_ptr_t nl, const std::vector<double> *thetas, int parentid ){
+int FragmentGraph::addToGraphWithThetas(const FragmentTreeNode &node, const std::vector<double> *thetas, int parentid ){
 
 	//If the fragment doesn't exist, add it
-	double mass = getMonoIsotopicMass( ion, (parentid < 0) );
-	int id = addFragmentOrFetchExistingId( ion, mass );
+	int addH = (parentid < 0) && !node.is_negative_mode;
+	int subtractH = (parentid < 0) && node.is_negative_mode;
+	double mass = getMonoIsotopicMass( node.ion, addH, subtractH );
+	int id = addFragmentOrFetchExistingId( node.ion, mass );
 
 	//Add a transition, if one does not exist
 	if( parentid >= 0 && findMatchingTransition( parentid, id ) < 0 ){
 		int idx = transitions.size();
-		transitions.push_back( Transition( parentid, id, nl, ion ) );
+		transitions.push_back( Transition( parentid, id, node.nl, node.ion ) );
 	
 		//Update the tmaps
 		from_id_tmap[parentid].push_back( idx );

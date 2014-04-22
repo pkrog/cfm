@@ -32,58 +32,82 @@
 #include <iostream>
 #include <fstream>
 
+void MolData::setIonizationMode(bool is_negative_mode){
+	using_negative_mode = is_negative_mode;
+	if( is_negative_mode ){
+		fg = &neg_fg;
+		ev_fg = &neg_ev_fg;
+		graph_computed = &neg_graph_computed;
+		ev_graph_computed = &neg_ev_graph_computed;
+		fvs = &neg_fvs;
+		thetas = &neg_thetas;
+		log_probs = &neg_log_probs;
+	}
+	else{
+		fg = &pos_fg;
+		ev_fg = &pos_ev_fg;
+		graph_computed = &pos_graph_computed;
+		ev_graph_computed = &pos_ev_graph_computed;
+		fvs = &pos_fvs;
+		thetas = &pos_thetas;
+		log_probs = &pos_log_probs;
+	}
+
+}
+
+void MolData::computeGraphWithGenerator( FragmentGraphGenerator &fgen, int depth ){
+
+	*fg = fgen.createNewGraph();
+	FragmentTreeNode *startnode = fgen.createStartNode( smiles_or_inchi, using_negative_mode );
+	fgen.compute( *startnode, depth, -1 );
+	delete startnode;
+	*graph_computed = 1;
+
+}
+
 void MolData::computeFragmentGraph( int depth ){
 	
 	FragmentGraphGenerator fgen;
-	fg = fgen.createNewGraph();
-	FragmentTreeNode *startnode = fgen.createStartNode( smiles_or_inchi );
-	fgen.compute( *startnode, depth, -1 );
-	delete startnode;
-	graph_computed = 1;
-
+	computeGraphWithGenerator( fgen, depth );
 }
 
 void MolData::computeFragmentGraphAndReplaceMolsWithFVs( int depth, FeatureCalculator *fc, bool retain_smiles){
 	
 	//Compute the fragment graph, replacing the transition molecules with feature vectors
 	FragmentGraphGenerator fgen( fc );
-	fg = fgen.createNewGraph();
-	FragmentTreeNode *startnode = fgen.createStartNode( smiles_or_inchi );
-	fgen.compute( *startnode, depth, -1 );
-	delete startnode;
-	graph_computed = 1;
+	computeGraphWithGenerator( fgen, depth );
 
 	//Copy all the feature vector pointers up into the mol data
-	fvs.resize( fg->getNumTransitions() );
-	for( unsigned int i = 0; i < fg->getNumTransitions(); i++ )
-		fvs[i] = fg->getTransitionAtIdx(i)->getTmpFV();
+	(*fvs).resize( (*fg)->getNumTransitions() );
+	for( unsigned int i = 0; i < (*fg)->getNumTransitions(); i++ )
+		(*fvs)[i] = (*fg)->getTransitionAtIdx(i)->getTmpFV();
 
 	//Delete all the fragment smiles (we only need these while we're computing the graph)
-	if(!retain_smiles) fg->clearAllSmiles();
+	if(!retain_smiles) (*fg)->clearAllSmiles();
 
 }
 
-void MolData::computeLikelyFragmentGraphAndSetThetas( Param *param, config_t *cfg, double prob_thresh_for_prune, bool retain_smiles  ){
+void MolData::computeLikelyFragmentGraphAndSetThetas( Param *param, config_t *cfg, double prob_thresh_for_prune, bool retain_smiles ){
 	
 	//Compute the fragment graph, replacing the transition molecules with feature vectors
 	LikelyFragmentGraphGenerator fgen(param, cfg, prob_thresh_for_prune ); 
-	fg = fgen.createNewGraph();
-	FragmentTreeNode *startnode = fgen.createStartNode( smiles_or_inchi );
+	(*fg) = fgen.createNewGraph();
+	FragmentTreeNode *startnode = fgen.createStartNode( smiles_or_inchi, using_negative_mode );
 	fgen.compute( *startnode, cfg->fg_depth, -1, 0.0 );
 	delete startnode;
-	graph_computed = 1;
+	*graph_computed = 1;
 
 	//Copy all the theta values up into the mol data and delete the tmp thetas
 	const unsigned int num_levels = param->getNumEnergyLevels();
-	thetas.resize(num_levels);
+	(*thetas).resize(num_levels);
 	for( unsigned int energy = 0; energy < num_levels; energy++ ){
-		thetas[energy].resize( fg->getNumTransitions() );
-		for( unsigned int i = 0; i < fg->getNumTransitions(); i++ )
-			thetas[energy][i] = (*(fg->getTransitionAtIdx(i)->getTmpThetas()))[energy];
+		(*thetas)[energy].resize( (*fg)->getNumTransitions() );
+		for( unsigned int i = 0; i < (*fg)->getNumTransitions(); i++ )
+			(*thetas)[energy][i] = (*((*fg)->getTransitionAtIdx(i)->getTmpThetas()))[energy];
 	}
 	
 	//Delete all the fragment smiles (we only need these while we're computing the graph)
-	if(!retain_smiles) fg->clearAllSmiles();
+	if(!retain_smiles) (*fg)->clearAllSmiles();
 
 }
 
@@ -92,18 +116,17 @@ void MolData::computeLikelyFragmentGraphAndSetThetas( Param *param, config_t *cf
 //thresholding inclusion in the graph by the provided belief_thresh value (log domain)
 void MolData::computeEvidenceFragmentGraph( beliefs_t *beliefs, double log_belief_thresh, config_t *cfg ){
 
-	unsigned int num_transitions = fg->getNumTransitions();
-	unsigned int num_fragments = fg->getNumFragments();
-	ev_fg = new EvidenceFragmentGraph();
-	
+	*ev_fg = new EvidenceFragmentGraph();
+
+	unsigned int num_transitions = (*fg)->getNumTransitions();
+	unsigned int num_fragments = (*fg)->getNumFragments();
+
 	//Add the root fragment
 	Transition null_t;
 	std::vector<int> id_lookup(num_fragments,-1);
 	std::vector<double> main_ev;
 	computeFragmentEvidenceValues(main_ev, 0, beliefs, cfg );
-	id_lookup[0] = ev_fg->addToGraphDirectNoCheck(EvidenceFragment(*(fg->getFragmentAtIdx(0)),-1,main_ev),&null_t,-1);
-
-
+	id_lookup[0] = (*ev_fg)->addToGraphDirectNoCheck(EvidenceFragment(*((*fg)->getFragmentAtIdx(0)),-1,main_ev),&null_t,-1);
 
 	//Add the fragments and transitions if the beliefs are high enough
 	std::vector<int> t_added_flags(num_transitions, 0);
@@ -113,27 +136,27 @@ void MolData::computeEvidenceFragmentGraph( beliefs_t *beliefs, double log_belie
 			if(t_added_flags[i]) continue;
 
 			if( beliefs->tn[i][depth] >= log_belief_thresh ){
-				const Transition *t = fg->getTransitionAtIdx(i);
-				const Fragment *f = fg->getFragmentAtIdx( t->getToId() );
+				const Transition *t = (*fg)->getTransitionAtIdx(i);
+				const Fragment *f = (*fg)->getFragmentAtIdx( t->getToId() );
 				int from_id = id_lookup[t->getFromId()];
 				if( id_lookup[t->getToId()] == -1 ){
 					std::vector<double> evidence;
 					computeFragmentEvidenceValues(evidence, t->getToId(), beliefs, cfg );
-					int to_id = ev_fg->addToGraphDirectNoCheck(EvidenceFragment(*f,-1,evidence),t,from_id);
+					int to_id = (*ev_fg)->addToGraphDirectNoCheck(EvidenceFragment(*f,-1,evidence),t,from_id);
 					id_lookup[t->getToId()] = to_id;
 				}
 				else if( id_lookup[t->getFromId()] != -1)
-					ev_fg->addTransition(from_id, id_lookup[t->getToId()], t->getNLSmiles());
+					(*ev_fg)->addTransition(from_id, id_lookup[t->getToId()], t->getNLSmiles());
 				t_added_flags[i] = 1;
 			}
 		}
 	}
-	ev_graph_computed = 1;
+	*ev_graph_computed = 1;
 }
 
 void MolData::computeFragmentEvidenceValues(std::vector<double> &evidence, int frag_idx, const beliefs_t *beliefs, config_t *cfg ){
 
-	const tmap_t *tomap = fg->getToIdTMap();
+	const tmap_t *tomap = (*fg)->getToIdTMap();
 
 	evidence.resize(cfg->dv_spectrum_depths.size());
 	for( int energy = 0; energy < cfg->dv_spectrum_depths.size(); energy++ ){
@@ -155,12 +178,12 @@ void MolData::computeFragmentEvidenceValues(std::vector<double> &evidence, int f
 
 void MolData::annotatePeaks( double abs_tol, double ppm_tol, bool prune_deadends){
 
-	if(!ev_graph_computed){
+	if( !(*ev_graph_computed) ){
 		std::cout  << "Warning: called annotate peaks without first computing evidence graph" << std::endl;
 		return;
 	}
 
-	unsigned int num_fragments = ev_fg->getNumFragments();
+	unsigned int num_fragments = (*ev_fg)->getNumFragments();
 	std::vector<int> frag_flags(num_fragments,0);
 
 	//Assign fragment annotations to peaks
@@ -169,10 +192,10 @@ void MolData::annotatePeaks( double abs_tol, double ppm_tol, bool prune_deadends
 		for( ; it != spectra[energy].end();  ++it ){
 		
 			double mass_tol = getMassTol( abs_tol, ppm_tol, it->mass );
-			int num_fragments = ev_fg->getNumFragments();
+			int num_fragments = (*ev_fg)->getNumFragments();
 			for( int fidx = 0; fidx < num_fragments; fidx++ ){
 			
-				const EvidenceFragment *f = ev_fg->getFragmentAtIdx(fidx);
+				const EvidenceFragment *f = (*ev_fg)->getFragmentAtIdx(fidx);
 				if( fabs( f->getMass() - it->mass ) <= mass_tol ){
 					it->annotations.push_back(annotation_t(f->getId(),exp(f->getEvidence(energy))));	
 					frag_flags[fidx] = 1;
@@ -192,8 +215,8 @@ void MolData::annotatePeaks( double abs_tol, double ppm_tol, bool prune_deadends
 		//If there is no peak for this fragment, check there is
 		//an annotated descendent, else flag for deletion
 		std::vector<int> direct_flags(num_fragments);
-		ev_fg->setFlagsForDirectPaths( direct_flags, 0, frag_flags );
-		if( ev_fg->fragmentIsRedundant(i, frag_flags, direct_flags) )
+		(*ev_fg)->setFlagsForDirectPaths( direct_flags, 0, frag_flags );
+		if( (*ev_fg)->fragmentIsRedundant(i, frag_flags, direct_flags) )
 			delete_flags[i] = 1;
 		else delete_flags[i] = 0;
 	}
@@ -202,19 +225,19 @@ void MolData::annotatePeaks( double abs_tol, double ppm_tol, bool prune_deadends
 	Transition null_t;
 	EvidenceFragmentGraph *new_ev_fg = new EvidenceFragmentGraph();
 	std::vector<int> id_lookup(num_fragments, -1);
-	id_lookup[0] = new_ev_fg->addToGraphDirectNoCheck( *ev_fg->getFragmentAtIdx(0), &null_t, -1);
-	for(unsigned int i = 0; i < ev_fg->getNumTransitions(); i++ ){	
-		const Transition *t = ev_fg->getTransitionAtIdx(i);
+	id_lookup[0] = new_ev_fg->addToGraphDirectNoCheck( *(*ev_fg)->getFragmentAtIdx(0), &null_t, -1);
+	for(unsigned int i = 0; i < (*ev_fg)->getNumTransitions(); i++ ){	
+		const Transition *t = (*ev_fg)->getTransitionAtIdx(i);
 		int fromid = t->getFromId();
 		int toid = t->getToId();
 		if( delete_flags[toid] || delete_flags[fromid] ) continue;
 		if( id_lookup[toid] == -1 ) 
-			id_lookup[toid] = new_ev_fg->addToGraphDirectNoCheck(*ev_fg->getFragmentAtIdx(toid), t, id_lookup[fromid]);
+			id_lookup[toid] = new_ev_fg->addToGraphDirectNoCheck(*(*ev_fg)->getFragmentAtIdx(toid), t, id_lookup[fromid]);
 		else
 			new_ev_fg->addTransition(id_lookup[fromid], id_lookup[toid], t->getNLSmiles() );
 	}
-	delete ev_fg;
-	ev_fg = new_ev_fg;
+	delete *ev_fg;	
+	*ev_fg = new_ev_fg;
 
 	//Update annotations with new ids
 	for( int energy = 0; energy < spectra.size(); energy++ ){
@@ -231,60 +254,60 @@ void MolData::annotatePeaks( double abs_tol, double ppm_tol, bool prune_deadends
 
 void MolData::computeFeatureVectors( FeatureCalculator *fc, bool deleteMols ){
 
-	fvs.resize( fg->getNumTransitions() );
-	for( unsigned int i = 0; i < fg->getNumTransitions(); i++ ){
-		const Transition *t = fg->getTransitionAtIdx(i);
-		fvs[i] = fc->computeFV( t->getIon(), t->getNeutralLoss() );
-		if( deleteMols ) fg->deleteMolsForTransitionAtIdx(i);
+	(*fvs).resize( (*fg)->getNumTransitions() );
+	for( unsigned int i = 0; i < (*fg)->getNumTransitions(); i++ ){
+		const Transition *t = (*fg)->getTransitionAtIdx(i);
+		(*fvs)[i] = fc->computeFV( t->getIon(), t->getNeutralLoss() );
+		if( deleteMols ) (*fg)->deleteMolsForTransitionAtIdx(i);
 	}
 	if( !deleteMols ) return;
-	fg->clearAllSmiles();
+	(*fg)->clearAllSmiles();
 
 }
 
 void MolData::computeTransitionThetas( Param &param ){
 
 	const unsigned int num_levels = param.getNumEnergyLevels();
-	thetas.resize(num_levels);
+	(*thetas).resize(num_levels);
 	for( unsigned int energy = 0; energy < num_levels; energy++ ){
 		
 		//Compute the theta value for each feature vector
-		thetas[energy].resize( fg->getNumTransitions() );
-		for( unsigned int i = 0; i < fg->getNumTransitions(); i++ )
-			thetas[energy][i] = param.computeTheta( *fvs[i], energy );		
+		(*thetas)[energy].resize( (*fg)->getNumTransitions() );
+		for( unsigned int i = 0; i < (*fg)->getNumTransitions(); i++ )
+			(*thetas)[energy][i] = param.computeTheta( *(*fvs)[i], energy );		
 	}
 }
 
 void MolData::computeTransitionProbabilities(){
 
-	log_probs.resize( thetas.size() );
-	for( unsigned int energy = 0; energy < thetas.size(); energy++ ){
+	(*log_probs).resize( (*thetas).size() );
+	for( unsigned int energy = 0; energy < (*thetas).size(); energy++ ){
 		
 		//Will store an entry for all transitions, followed by all persistences
-		log_probs[energy].resize( fg->getNumTransitions() + fg->getNumFragments() );
+		(*log_probs)[energy].resize( (*fg)->getNumTransitions() + (*fg)->getNumFragments() );
 
 		//Compute all the denominators
-		std::vector<double> denom_cache( fg->getNumFragments() );
-		const tmap_t *from_id_map = fg->getFromIdTMap();
-		for( unsigned int i = 0; i < fg->getNumFragments(); i++ ){
+		std::vector<double> denom_cache( (*fg)->getNumFragments() );
+		const tmap_t *from_id_map = (*fg)->getFromIdTMap();
+		for( unsigned int i = 0; i < (*fg)->getNumFragments(); i++ ){
 		
 			double denom = 0.0;
 			std::vector<int>::const_iterator it = (*from_id_map)[i].begin();
 			for( ; it != (*from_id_map)[i].end(); ++it )
-				denom = logAdd( denom, thetas[energy][*it] );
+				denom = logAdd( denom, (*thetas)[energy][*it] );
 			denom_cache[i] = denom;
 		}
 	
 		//Set the transition log probabilities
-		for( unsigned int i = 0; i < fg->getNumTransitions(); i++ ){
-			const Transition *t = fg->getTransitionAtIdx(i);
-			log_probs[energy][i] = thetas[energy][i] - denom_cache[ t->getFromId() ];
+		for( unsigned int i = 0; i < (*fg)->getNumTransitions(); i++ ){
+			const Transition *t = (*fg)->getTransitionAtIdx(i);
+			(*log_probs)[energy][i] = (*thetas)[energy][i] - denom_cache[ t->getFromId() ];
 		}
 
 		//Set the persistence log probabilities
-		int offset = fg->getNumTransitions();
-		for( unsigned int i = 0; i < fg->getNumFragments(); i++ )
-			log_probs[energy][offset + i] = -denom_cache[i];
+		int offset = (*fg)->getNumTransitions();
+		for( unsigned int i = 0; i < (*fg)->getNumFragments(); i++ )
+			(*log_probs)[energy][offset + i] = -denom_cache[i];
 
 	}
 	return;
@@ -347,8 +370,8 @@ void MolData::removePeaksWithNoFragment( double abs_tol, double ppm_tol ){
 			
 			double mass_tol = getMassTol( abs_tol, ppm_tol, itp->mass );
 			bool found = false;
-			for( unsigned int i = 0; i < fg->getNumFragments(); i++ ){
-				const Fragment *f = fg->getFragmentAtIdx(i);
+			for( unsigned int i = 0; i < (*fg)->getNumFragments(); i++ ){
+				const Fragment *f = (*fg)->getFragmentAtIdx(i);
 				if( fabs( f->getMass() - itp->mass ) < mass_tol ){ 
 					found = true;
 					break;
@@ -372,7 +395,7 @@ void MolData::createInterpolatedSpectra( config_t &cfg ){
 		
 	//Create a preliminary spectrum with just the main peak
 	Spectrum initial_spec;
-	initial_spec.push_back( Peak(fg->getFragmentAtIdx(0)->getMass(), 100.0)  );
+	initial_spec.push_back( Peak((*fg)->getFragmentAtIdx(0)->getMass(), 100.0)  );
 
 	//Interpolated spectra
 	int prev_d = 0;
@@ -500,7 +523,7 @@ void MolData::translatePeaksFromMsgToSpectra( Spectrum &out_spec, Message *msg )
 	std::map<double, Peak> peak_probs;
 	Message::const_iterator itt = msg->begin();
 	for( ; itt != msg->end() ; ++itt ){
-		double mass = fg->getFragmentAtIdx(itt.index())->getMass();
+		double mass = (*fg)->getFragmentAtIdx(itt.index())->getMass();
 		double intensity_contrib = exp(*itt);
 		if( peak_probs.find(mass) != peak_probs.end() )
 			peak_probs[mass].intensity += intensity_contrib;
@@ -543,10 +566,10 @@ void MolData::writeFullEnumerationSpectrumToFile( std::string &filename ){
 	std::ostream out(buf);
 
 	//Get and sort the fragment masses
-	unsigned int numf = fg->getNumFragments();
+	unsigned int numf = (*fg)->getNumFragments();
 	std::vector<double> all_masses(numf);
 	for( unsigned int i = 0; i < numf; i++ ){
-		const Fragment *f = fg->getFragmentAtIdx(i);
+		const Fragment *f = (*fg)->getFragmentAtIdx(i);
 		all_masses[i] = f->getMass();
 	}
 	std::sort( all_masses.begin(), all_masses.end() );
@@ -615,6 +638,7 @@ void MolData::postprocessPredictedSpectra(){
 		normalizeAndSortSpectrum( *it );
 		sortAndNormalizeAnnotations( *it );
 	}
+	
 }
 
 void MolData::postprocessSpectrum( Spectrum &spectrum ){
@@ -647,7 +671,7 @@ void MolData::normalizeAndSortSpectrum( Spectrum &spectrum){
 	for( itp = spectrum.begin(); itp != spectrum.end(); ++itp )
 		itp->intensity *= norm;
 
-	//Ensure the peaks are sorted by mass
+	//Ensure he peaks are sorted by mass
 	std::sort( spectrum.begin(), spectrum.end(), sort_peaks_by_mass );
 }
 
@@ -667,13 +691,17 @@ void MolData::sortAndNormalizeAnnotations(Spectrum &spectrum){
 			itt->second *= norm;
 	}
 }
+
 MolData::~MolData(){
 
-	if( graph_computed ) delete fg;
-	if( ev_graph_computed ) delete ev_fg;
+	if( pos_graph_computed ) delete pos_fg;
+	if( pos_ev_graph_computed ) delete pos_ev_fg;
+	if( neg_graph_computed ) delete neg_fg;
+	if( neg_ev_graph_computed ) delete neg_ev_fg;	
 
 	//Delete any computed feature vectors
-	std::vector<FeatureVector *>::iterator it = fvs.begin();
-	for( ; it != fvs.end(); ++it ) delete *it;
-
+	std::vector<FeatureVector *>::iterator it = pos_fvs.begin();
+	for( ; it != pos_fvs.end(); ++it ) delete *it;
+	it = neg_fvs.begin();
+	for( ; it != neg_fvs.end(); ++it ) delete *it;
 }

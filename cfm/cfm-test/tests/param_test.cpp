@@ -104,30 +104,31 @@ void ParamsTestComputeTransitionThetas::runTest(){
 class ParamTestMol : public MolData {
 public:
 	ParamTestMol() : MolData("Param Test Mol", ""){
-	
+
+		setIonizationMode(false);
 		//Create a molecule based on what was previously in test_bn_transition.txt
-		fg = new FragmentGraph();
+		(*fg) = new FragmentGraph();
 		romol_ptr_t basic_nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCCCN")) ), basic_nl, -1 ); //id = 0
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH4+]")) ), basic_nl, 0 ); // id = 1, 0 -> 1
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C=CC[NH3+]")) ), basic_nl, 0 ); //id = 2, 0 -> 2
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH4+]")) ), basic_nl, 2 ); // 2 -> 1
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C=C=[NH2+]")) ), basic_nl, 2 );  //id = 3, 2 -> 3
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[CH3+]")) ), basic_nl, 2 ); //id = 4, 2->4
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[CH3+]")) ), basic_nl, 3 ); //3->4
-		fg->addToGraph( romol_ptr_t( static_cast<RDKit::ROMol *>( RDKit::SmilesToMol("[C+]#N")) ), basic_nl, 3 ); //id = 5, 3->5
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCCCN")) ), basic_nl,-1, -1, false), -1 ); //id = 0
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH4+]")) ), basic_nl,-1, -1, false), 0 ); // id = 1, 0 -> 1
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C=CC[NH3+]")) ), basic_nl,-1, -1, false), 0 ); //id = 2, 0 -> 2
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH4+]")) ), basic_nl,-1, -1, false), 2 ); // 2 -> 1
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C=C=[NH2+]")) ), basic_nl,-1, -1, false), 2 );  //id = 3, 2 -> 3
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[CH3+]")) ), basic_nl,-1, -1, false), 2 ); //id = 4, 2->4
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[CH3+]")) ), basic_nl, -1, -1, false),3 ); //3->4
+		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>( RDKit::SmilesToMol("[C+]#N")) ), basic_nl,-1, -1, false), 3 ); //id = 5, 3->5
 
 		//Add a simple feature vector to each transition
-		unsigned int num_trans = fg->getNumTransitions();
-		fvs.resize( num_trans ); 
+		unsigned int num_trans = (*fg)->getNumTransitions();
+		(*fvs).resize( num_trans ); 
 		for( unsigned int i = 0; i < num_trans; i++ ){
-			fvs[i] = new FeatureVector();
-			fvs[i]->addFeature(1.0);			//Bias term
-			fvs[i]->addFeatureAtIdx(0.0, 10);	//Resize to 11 (Using HydrogenMovement feature to initialise params)
+			(*fvs)[i] = new FeatureVector();
+			(*fvs)[i]->addFeature(1.0);			//Bias term
+			(*fvs)[i]->addFeatureAtIdx(0.0, 10);	//Resize to 11 (Using HydrogenMovement feature to initialise params)
 		}
-		fvs[1]->addFeatureAtIdx(1.0,1);	//Transition 0->2
-		fvs[3]->addFeatureAtIdx(1.0,1); //Transition 2->3
-		fvs[4]->addFeatureAtIdx(1.0,1); //Transition 2->4
+		(*fvs)[1]->addFeatureAtIdx(1.0,1);	//Transition 0->2
+		(*fvs)[3]->addFeatureAtIdx(1.0,1); //Transition 2->3
+		(*fvs)[4]->addFeatureAtIdx(1.0,1); //Transition 2->4
 	}
 };
 

@@ -95,6 +95,7 @@ int main(int argc, char *argv[])
 
 	//Compute the fragmentation graph with transition probabilities
 	FeatureCalculator fc( *param->getFeatureNames() );
+	moldata.setIonizationMode(cfg.ionization_mode == NEGATIVE_IONIZATION_MODE);
 	moldata.computeFragmentGraphAndReplaceMolsWithFVs(cfg.fg_depth, &fc, true);
 	moldata.computeTransitionThetas(*param);
 	moldata.computeTransitionProbabilities();

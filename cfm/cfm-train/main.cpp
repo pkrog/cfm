@@ -110,6 +110,7 @@ int main(int argc, char *argv[])
 	if( mpi_rank == MASTER ) std::cout << "Computing fragmentation graphs and features..";
 	std::vector<MolData>::iterator mit = data.begin();
 	for( ; mit != data.end(); ++mit ){
+		mit->setIonizationMode(cfg.ionization_mode == NEGATIVE_IONIZATION_MODE);
 		//If we're not training, only load the ones we'll be testing
 		if( (mit->getGroup() >= min_group && mit->getGroup() <= max_group) || !no_train )	
 			mit->computeFragmentGraphAndReplaceMolsWithFVs(cfg.fg_depth, &fc);

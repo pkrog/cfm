@@ -85,7 +85,9 @@ static const int DEFAULT_MAX_SEARCH_COUNT = 20;
 
 
 
-
+static const int POSITIVE_IONIZATION_MODE = 1;
+static const int NEGATIVE_IONIZATION_MODE = 2;
+static const int DEFAULT_IONIZATION_MODE = POSITIVE_IONIZATION_MODE;
 
 //Configuration
 struct config_t{
@@ -94,6 +96,7 @@ struct config_t{
 	int fg_depth;
 
 	int use_single_energy_cfm;	//Use Single Energy CFM (rather than Combined Energy)
+	int ionization_mode;
 
 	//Model Level Configuration
 	unsigned int model_depth; //Total Depth

@@ -32,23 +32,31 @@ int main(int argc, char *argv[])
 	bool to_stdout = true;
 	bool fullgraph = true;
     
-	if (argc != 3 && argc != 4 && argc != 5)
+	if (argc != 4 && argc != 5 && argc != 6)
 	{
 		std::cout << std::endl << "Usage:" << std::endl;
-		std::cout << "fraggraph-gen.exe <smiles or inchi string> <max_depth> ";
+		std::cout << "fraggraph-gen.exe <smiles or inchi string> <max_depth> <mode(+/-)> ";
 		std::cout << "<opt: fullgraph (default) or fragonly> <opt: output_filename (else stdout)>" << std::endl << std::endl ;
 		exit(1);
 	}
     smiles_or_inchi = argv[1];
     max_depth = atoi(argv[2]);
-	if( argc > 3 ){ 
-		std::string type = argv[3];
+	int negative_mode = -1;
+	if( argv[3][0] == '+' ) negative_mode = 0;
+	else if(argv[3][0] == '-' ) negative_mode = 1;
+	else{ 
+		std::cout << "Unknown setting for ionization mode: expecting + or -" << std::endl;
+		exit(1);
+	}
+
+	if( argc > 4 ){
+		std::string type = argv[4];
 		if( type == "fullgraph" ) fullgraph = true;
 		else if( type == "fragonly" ) fullgraph = false;
 		else std::cout << "Unknown setting for output type: " << type << " (expecting fullgraph or fragonly)" << std::endl;
 	}
-	if( argc > 4 ){ 
-		output_filename = argv[4];
+	if( argc > 5 ){ 
+		output_filename = argv[5];
 		to_stdout = false;
 	}
 	
@@ -63,7 +71,7 @@ int main(int argc, char *argv[])
 
 	//Run the fragmentation procedure
 	FragmentGraphGenerator gg;
-	FragmentTreeNode *startNode = gg.createStartNode(smiles_or_inchi);
+	FragmentTreeNode *startNode = gg.createStartNode(smiles_or_inchi, negative_mode);
 	FragmentGraph *graph = gg.createNewGraph();
 	gg.compute( *startNode, max_depth, -1 );
 	delete startNode;

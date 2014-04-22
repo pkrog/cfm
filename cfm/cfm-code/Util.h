@@ -45,7 +45,7 @@ public:
 };
 
 //Helper function to compute the monoisotopic mass of a molecule
-double getMonoIsotopicMass( romol_ptr_t mol, bool addHPlus);
+double getMonoIsotopicMass( romol_ptr_t mol, bool addHPlus, bool subtractHPplus);
 
 //Helper function to find an atom with the given label
 RDKit::Atom *getLabeledAtom( romol_ptr_t mol, const char *label );

@@ -26,6 +26,7 @@
 
 #include "Features.h"
 #include "FragmentGraph.h"
+#include "FragmentGraphGenerator.h"
 #include "Param.h"
 #include "Config.h"
 #include "Message.h"
@@ -59,26 +60,26 @@ static bool sort_peaks_by_mass(const Peak &u, const Peak &v){
 class MolData{
 public:
 	MolData( std::string &an_id, std::string &an_smiles_or_inchi, int a_group ) :
-	  id(an_id), smiles_or_inchi(an_smiles_or_inchi), group(a_group), graph_computed(0), ev_graph_computed(0) {}; 
+	  id(an_id), smiles_or_inchi(an_smiles_or_inchi), group(a_group), pos_graph_computed(0), pos_ev_graph_computed(0), neg_graph_computed(0), neg_ev_graph_computed(0) {}; 
 	MolData( std::string &an_id, std::string &an_smiles_or_inchi ) :
-	  id(an_id), smiles_or_inchi(an_smiles_or_inchi), group(0), graph_computed(0), ev_graph_computed(0) {}; 
+	  id(an_id), smiles_or_inchi(an_smiles_or_inchi), group(0), pos_graph_computed(0), pos_ev_graph_computed(0), neg_graph_computed(0), neg_ev_graph_computed(0) {}; 
 	MolData( const char *an_id, const char *an_smiles_or_inchi ) :
-	  id(an_id), smiles_or_inchi(an_smiles_or_inchi), group(0), graph_computed(0), ev_graph_computed(0) {}; 
+	  id(an_id), smiles_or_inchi(an_smiles_or_inchi), group(0), pos_graph_computed(0), pos_ev_graph_computed(0), neg_graph_computed(0), neg_ev_graph_computed(0) {}; 
 		
 	//Access functions
-	const FragmentGraph *getFragmentGraph(){return fg;};
-	const EvidenceFragmentGraph *getEvidenceFragmentGraph(){return ev_fg;};
+	const FragmentGraph *getFragmentGraph(){if(using_negative_mode) return neg_fg; else return pos_fg;};
+	const EvidenceFragmentGraph *getEvidenceFragmentGraph(){if(using_negative_mode) return neg_ev_fg; else return pos_ev_fg;};
 	const Spectrum *getSpectrum(int energy){return &(spectra[energy]);};
 	const std::vector<Spectrum> *getSpectra(){return &spectra;};
 	const Spectrum *getPredictedSpectrum(int energy){return &(predicted_spectra[energy]);};
 	unsigned int getNumSpectra(){return spectra.size();};
-	const FeatureVector *getFeatureVectorForIdx(int index){ return fvs[index]; };
+	const FeatureVector *getFeatureVectorForIdx(int index){ return (*fvs)[index]; };
 	double getThetaForIdx(int energy, int index)
-	{ return thetas[energy][index];};
+	{ return (*thetas)[energy][index];};
 	double getLogTransitionProbForIdx(int energy, int index)
-	{ return log_probs[energy][index];};
+	{ return (*log_probs)[energy][index];};
 	double getLogPersistenceProbForIdx(int energy, int index)
-	{ return log_probs[energy][fg->getNumTransitions() + index];};
+	{ return (*log_probs)[energy][(*fg)->getNumTransitions() + index];};
 	int getGroup(){ return group; };
 	std::string getId(){ return id; };
 	std::string getSmilesOrInchi(){ return smiles_or_inchi; };
@@ -111,23 +112,49 @@ public:
 	//thresholding inclusion in the graph by the provided belief_thresh value (log domain)
 	void computeEvidenceFragmentGraph( beliefs_t *beliefs, double log_belief_thresh, config_t *cfg );
 	void annotatePeaks(double abs_tol, double ppm_tol, bool prune_deadends = true);
-
+	void setIonizationMode(bool is_negative_mode);
 	~MolData();
 
 protected:	//These features are protected rather than private for access during tests.
 	int group;
 	std::string id;
 	std::string smiles_or_inchi;
-	FragmentGraph *fg;
-	EvidenceFragmentGraph *ev_fg;
-	int graph_computed;
-	int ev_graph_computed;
+
+	//Fragment Graphs
+	FragmentGraph **fg; //Working fg -> set by setIonizationMode()
+	FragmentGraph *pos_fg;
+	FragmentGraph *neg_fg;
+	EvidenceFragmentGraph **ev_fg; //Working ev_fg -> set by setIonizationMode()
+	EvidenceFragmentGraph *pos_ev_fg;
+	EvidenceFragmentGraph *neg_ev_fg;
+	
+	//Flags indicating when the respective fragment graphs have been computed
+	int *graph_computed;
+	int *ev_graph_computed;
+	int pos_graph_computed;
+	int pos_ev_graph_computed;
+	int neg_graph_computed;
+	int neg_ev_graph_computed;
+	
+	//Spectra
 	std::vector<Spectrum> spectra;
 	std::vector<Spectrum> predicted_spectra;
-	std::vector<FeatureVector *> fvs;
-	std::vector<std::vector<double> > thetas;
-	std::vector<std::vector<double> > log_probs;
+	
+	//Model values
+	std::vector<FeatureVector *> *fvs;
+	std::vector<std::vector<double> > *thetas;
+	std::vector<std::vector<double> > *log_probs;
+	std::vector<FeatureVector *> pos_fvs;
+	std::vector<std::vector<double> > pos_thetas;
+	std::vector<std::vector<double> > pos_log_probs;
+	std::vector<FeatureVector *> neg_fvs;
+	std::vector<std::vector<double> > neg_thetas;
+	std::vector<std::vector<double> > neg_log_probs;
 
+	//Ionization mode used in current computations
+	bool using_negative_mode;
+	
+	void computeGraphWithGenerator( FragmentGraphGenerator &fgen, int depth );
 	void interpolateSpectra( Spectrum &output, Spectrum &lower_spec, Spectrum &higher_spec, double ratio, config_t &cfg );
 	void postprocessPredictedSpectra();
 

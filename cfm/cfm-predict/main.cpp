@@ -69,6 +69,7 @@ int main(int argc, char *argv[])
 
 	//Create the MolData structure with the input
  	MolData moldata( "NullId", input_smiles_or_inchi.c_str() );
+	moldata.setIonizationMode(cfg.ionization_mode == NEGATIVE_IONIZATION_MODE);
 
 	//Calculate the pruned FragmentGraph
 	moldata.computeLikelyFragmentGraphAndSetThetas(&param, &cfg, prob_thresh_for_prune, do_annotate);
