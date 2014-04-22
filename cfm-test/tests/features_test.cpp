@@ -743,6 +743,7 @@ void FeaturesTestMetlinExample::runTest(){
 	//Ingegration Test - compute the fragment tree and transitions
 	std::string id = "Metlin_21361";
 	MolData mol( id, smiles_Metlin_21361, 0 );
+	mol.setIonizationMode(false);
 	mol.computeFragmentGraph(1);
 	mol.computeFeatureVectors( &fc );
 

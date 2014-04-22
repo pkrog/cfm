@@ -41,7 +41,7 @@ public:
 	FragmentGraph *createNewGraph();
 
 	//Create the starting node from a smiles or inchi string - responsibility of caller to delete
-	FragmentTreeNode *createStartNode( std::string &smiles_or_inchi );
+	FragmentTreeNode *createStartNode( std::string &smiles_or_inchi, bool is_negative );
 
 	//Compute a FragmentGraph starting at the given node and computing to the depth given.
 	//The output will be appended to the current_graph

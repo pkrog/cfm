@@ -48,7 +48,7 @@ void initDefaultConfig( config_t &cfg ){
 	cfg.ipfp_converge_thresh = DEFAULT_IPFP_CONVERGE_THRESH;
 	cfg.osc_ipfp_converge_thresh = DEFAULT_IPFP_OSC_CONVERGE_THRESH;
 	cfg.use_single_energy_cfm = 0;
-
+	cfg.ionization_mode = DEFAULT_IONIZATION_MODE;
 }
 
 
@@ -71,6 +71,7 @@ void initConfig( config_t &cfg, std::string &filename ){
 		ss1 >> name >> value;
 
 		if( name == "lambda" ) cfg.lambda = value;
+		else if( name == "ionization_mode" ) cfg.ionization_mode = (int)value;
 		else if( name == "converge_count_thresh" ) cfg.converge_count_thresh = (int)value;
 		else if( name == "em_converge_thresh" ) cfg.em_converge_thresh = value;
 		else if( name == "ga_converge_thresh" ) cfg.ga_converge_thresh = value;
@@ -104,6 +105,12 @@ void initConfig( config_t &cfg, std::string &filename ){
 	//Report config parameters
 	if( cfg.use_single_energy_cfm ) std::cout << "Using Single Energy CFM" << std::endl;
 	else std::cout << "Using Combined Energy CFM" << std::endl;
+	if( cfg.ionization_mode == POSITIVE_IONIZATION_MODE ) std::cout << "Positive Ionization Mode" << std::endl;
+	else if( cfg.ionization_mode == NEGATIVE_IONIZATION_MODE ) std::cout << "Negative Ionization Mode" << std::endl;
+	else{ 
+		std::cout << "Warning: Unknown Ionization Mode, reverting to default mode (positive)" << std::endl;
+		cfg.ionization_mode = DEFAULT_IONIZATION_MODE;
+	}
 	std::cout << "Using Lambda " << cfg.lambda << std::endl;
 	std::cout << "Using Lambda Hold " << cfg.lambda_hold << std::endl;
 	std::cout << "Using Converge Count Threshold " << cfg.converge_count_thresh << std::endl;

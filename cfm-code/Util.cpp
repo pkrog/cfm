@@ -25,7 +25,7 @@ double getMassTol( double abs_tol, double ppm_tol, double mass ){
 	return mass_tol;
 }
 
-double getMonoIsotopicMass( romol_ptr_t mol, bool addHPlus){
+double getMonoIsotopicMass( romol_ptr_t mol, bool addHPlus, bool subtractHPplus){
 
 	RDKit::PeriodicTable *pt = RDKit::PeriodicTable::getTable();
 	double mass = 0.0;
@@ -37,6 +37,7 @@ double getMonoIsotopicMass( romol_ptr_t mol, bool addHPlus){
 		mass += atom->getTotalNumHs()*pt->getMostCommonIsotopeMass("H");
 	}
 	if(addHPlus) mass += pt->getMostCommonIsotopeMass("H");
+	if(subtractHPplus) mass -= pt->getMostCommonIsotopeMass("H");
 	return mass;
 }
 

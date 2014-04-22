@@ -121,15 +121,21 @@ void FragmentTreeNode::addBothChildren( int e_f0, int e_to_allocate, std::vector
 		int charge_idx = findChargeLocation( rwmol, charge_frag );
 		if( charge_idx < 0 ) continue;
 		RDKit::Atom *atom = rwmol.getAtomWithIdx(charge_idx);
-		atom->setFormalCharge(1);
-		atom->setNumExplicitHs( atom->getTotalNumHs() + 1 );
+		if( is_negative_mode ){
+			atom->setFormalCharge(-1);
+			atom->setNumExplicitHs( atom->getTotalNumHs() - 1 );
+		}else{
+			atom->setFormalCharge(1);
+			atom->setNumExplicitHs( atom->getTotalNumHs() + 1 );		
+		}
 		atom->calcExplicitValence();
 
 		//Separate the ion and nl mols and add the child node
 		std::vector< boost::shared_ptr< RDKit::ROMol > > mols = RDKit::MolOps::getMolFrags( rwmol );
 		if( mols.size() == 2 ){
-			int ion_idx = 1 - RDKit::MolOps::getFormalCharge( *mols[0].get() );
-		
+			int mol0_q = RDKit::MolOps::getFormalCharge( *mols[0].get() );
+			int ion_idx = (mol0_q == 0);
+
 			//Record some of the properties of the break in the neutral loss
 			//e.g. ring break? aromaticity etc.
 			romol_ptr_t nl = mols[1-ion_idx];
@@ -142,11 +148,12 @@ void FragmentTreeNode::addBothChildren( int e_f0, int e_to_allocate, std::vector
 			nl.get()->setProp("IsAromaticDblRingBreak", is_dbl_arom);
 		
 			//Add the child node
-			children.push_back( FragmentTreeNode( mols[ion_idx], nl, allocated_e[charge_frag], depth+1));
+			children.push_back( FragmentTreeNode( mols[ion_idx], nl, allocated_e[charge_frag], depth+1, is_negative_mode));
 		}
 		//Undo the charge
 		atom->setFormalCharge(0);
-		atom->setNumExplicitHs( atom->getTotalNumHs() - 1 );
+		if( is_negative_mode ) atom->setNumExplicitHs( atom->getTotalNumHs() + 1 );
+		else atom->setNumExplicitHs( atom->getTotalNumHs() - 1 );
 		atom->calcExplicitValence();
 	}
 }
@@ -162,6 +169,7 @@ int FragmentTreeNode::findChargeLocation( RDKit::RWMol &rwmol, int charge_frag )
 		RDKit::Atom *atom = rwmol.getAtomWithIdx(i);
 		atom->getProp("FragIdx", fragidx);
 		if( fragidx != charge_frag ) continue;
+		if( is_negative_mode && atom->getTotalNumHs() == 0) continue;
 		if( atom->getSymbol() == "C" ) anyCidx = i;
 		atom->getProp("NumUnbrokenRings", numrings);		
 		if( numrings > 0 ) continue;

@@ -56,6 +56,7 @@ void EMTestSelfProduction::runTest(){
 		std::string id = "TestMol", smiles = "NCCCN";
 		std::string spec_file = "tests/test_data/example_spectra.txt";
 		data.push_back( MolData( id, smiles, 0 ) );
+		data[0].setIonizationMode(false);
 		data[0].computeFragmentGraphAndReplaceMolsWithFVs(cfg.fg_depth, &fc);
 		data[0].readInSpectraFromFile( spec_file );
 
@@ -143,6 +144,7 @@ void EMTestSingleEnergySelfProduction::runTest(){
 	std::string id = "TestMol", smiles = "NCCCN";
 	std::string spec_file = "tests/test_data/example_spectra.txt";
 	data.push_back( MolData( id, smiles, 0 ) );
+	data[0].setIonizationMode(false);
 	data[0].computeFragmentGraphAndReplaceMolsWithFVs(orig_cfg.fg_depth, &fc);
 	data[0].readInSpectraFromFile( spec_file );
 

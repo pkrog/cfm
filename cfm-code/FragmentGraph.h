@@ -23,6 +23,7 @@
 
 #include "Util.h"
 #include "Features.h"
+#include "FragmentTreeNode.h"
 
 typedef std::vector<std::vector<int> > tmap_t;
 
@@ -33,10 +34,11 @@ public:
 	//Constructor, store the ion smiles and a reduced smiles since the ion is
 	//not needed and takes more space.
 	Fragment( std::string &a_ion_smiles, std::string &a_reduced_smiles, int an_id, double a_mass ) : 
-		id( an_id ), ion_smiles(a_ion_smiles), reduced_smiles( a_reduced_smiles ), mass( a_mass ){};
+		id( an_id ), ion_smiles(a_ion_smiles), reduced_smiles( a_reduced_smiles ), mass( a_mass ) {};
 
 	Fragment( const Fragment &a_fragment, int an_id ) :
-		id( an_id ), ion_smiles(*a_fragment.getIonSmiles()), reduced_smiles( *a_fragment.getReducedSmiles() ), mass( a_fragment.getMass() ){};
+		id( an_id ), ion_smiles(*a_fragment.getIonSmiles()), reduced_smiles( *a_fragment.getReducedSmiles() ), 
+			mass( a_fragment.getMass() ) {};
 
 	//Access Functions
 	double getMass() const { return mass; };
@@ -77,11 +79,11 @@ public:
 	Transition(){};
 	
 	//Basic constructor
-	Transition( int a_from_id, int a_to_id, RootedROMolPtr &a_nl, RootedROMolPtr &an_ion  );
+	Transition( int a_from_id, int a_to_id, const RootedROMolPtr &a_nl, const RootedROMolPtr &an_ion  );
 
 	//Alternative constructor that finds the root atoms and sets the
 	//root pointers appropriately
-	Transition( int a_from_id, int a_to_id, romol_ptr_t &a_nl, romol_ptr_t &an_ion  );
+	Transition( int a_from_id, int a_to_id, const romol_ptr_t &a_nl, const romol_ptr_t &an_ion  );
 	
 	//Direct constructor that bipasses the mols altogether and directly sets the nl_smiles
 	Transition( int a_from_id, int a_to_id, const std::string *a_nl_smiles ) :
@@ -127,13 +129,13 @@ public:
 	//  -- Update the relevant tmaps
 	// Note: If parentid < 0, assumes starting ion, so adds extra H to mass, and
 	//       doesn't add transition.
-	int addToGraph( romol_ptr_t ion, romol_ptr_t nl, int parentid );
+	int addToGraph( const FragmentTreeNode &node, int parentid );
 	
 	//As for previous function, but delete the mols in the transition and compute and store a feature vector instead
-	int addToGraphAndReplaceMolWithFV( romol_ptr_t ion, romol_ptr_t nl, int parentid, FeatureCalculator *fc );
+	int addToGraphAndReplaceMolWithFV( const FragmentTreeNode &node, int parentid, FeatureCalculator *fc );
 
 	//As for previous function, but don't store the mols in the transition and insert the pre-computed thetas instead
-	int addToGraphWithThetas(romol_ptr_t ion, romol_ptr_t nl, const std::vector<double> *thetas, int parentid );
+	int addToGraphWithThetas(const FragmentTreeNode &node, const std::vector<double> *thetas, int parentid );
 
 	//Write the Fragments only to file (formerly the backtrack output - without extra details)
 	void writeFragmentsOnly( std::ostream &out ) const;

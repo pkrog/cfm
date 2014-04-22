@@ -40,6 +40,7 @@ void Identifier::rankCandidatesForSpecMatch( std::vector<Candidate> &candidates,
 
 			//Create the MolData structure with the input
 			MolData moldata( it->getId()->c_str(), it->getSmilesOrInchi()->c_str() );
+			moldata.setIonizationMode(cfg->ionization_mode == NEGATIVE_IONIZATION_MODE);
 	
 			//Calculate the pruned FragmentGraph
 			moldata.computeLikelyFragmentGraphAndSetThetas(param, cfg, prob_thresh_for_prune);
@@ -80,6 +81,7 @@ void Identifier::rankPrecomputedCandidatesForSpecMatch( std::vector<PrecomputedC
 
 		//Create a temporary MolData structure
 		MolData moldata( it->getId()->c_str(), "CCC" );
+		moldata.setIonizationMode(cfg->ionization_mode == NEGATIVE_IONIZATION_MODE);
 	
 		//Load the predicted spectra
 		moldata.readInSpectraFromFile(it->getSpectrumFilename()->c_str(), true);

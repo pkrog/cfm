@@ -48,7 +48,7 @@ FragmentGraph *LikelyFragmentGraphGenerator::createNewGraph(){
 }
 
 //Create the starting node from a smiles or inchi string - responsibility of caller to delete
-FragmentTreeNode *FragmentGraphGenerator::createStartNode( std::string &smiles_or_inchi ){
+FragmentTreeNode *FragmentGraphGenerator::createStartNode( std::string &smiles_or_inchi, bool is_negative ){
 	
 	//Create the RDKit mol - this will be the ion
 	RDKit::RWMol *rwmol;
@@ -72,7 +72,7 @@ FragmentTreeNode *FragmentGraphGenerator::createStartNode( std::string &smiles_o
 	RDKit::MolOps::Kekulize( *rwmol );
 	int num_ep = countExtraElectronPairs( rwmol );
 
-	return( new FragmentTreeNode(romol_ptr_t(rwmol), num_ep, 0) );
+	return( new FragmentTreeNode(romol_ptr_t(rwmol), num_ep, 0, is_negative) );
 }
 
 void FragmentGraphGenerator::initialiseRoots( RDKit::RWMol *rwmol ){
@@ -198,9 +198,9 @@ void FragmentGraphGenerator::compute( FragmentTreeNode &node, int remaining_dept
 	//Add the node to the graph, and return a fragment id
 	int id = -1;
 	if( mols_to_fv ) 
-		id = current_graph->addToGraphAndReplaceMolWithFV( node.ion, node.nl, parentid, fc );
+		id = current_graph->addToGraphAndReplaceMolWithFV( node, parentid, fc );
 	else 
-		id = current_graph->addToGraph( node.ion, node.nl, parentid );
+		id = current_graph->addToGraph( node, parentid );
 
 	//Only compute to the desired depth
 	if( remaining_depth <= 0 ) return;
@@ -242,7 +242,7 @@ void LikelyFragmentGraphGenerator::compute( FragmentTreeNode &node,  int remaini
 	//Add the node to the graph, and return a fragment id: note, no mols or fv will be set,
 	//but the precomputed theta value will be used instead
 	int id = -1;
-	id = current_graph->addToGraphWithThetas( node.ion, node.nl, node.getAllTmpThetas(), parentid );
+	id = current_graph->addToGraphWithThetas( node, node.getAllTmpThetas(), parentid );
 
 	//Reached max depth? 
 	if( remaining_depth <= 0 ) return;
