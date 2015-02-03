@@ -23,6 +23,13 @@
 #include "Param.h"
 #include "Config.h"
 
+class FragmentGraphGenerationException: public std::exception{
+
+	virtual const char* what() const throw(){
+		return "Error during fragment graph generation, unable to proceed.";
+	}
+};
+
 //Class for generating a FragmentGraph given a starting node in the
 //enumerated fragmentation tree and a depth
 class FragmentGraphGenerator{

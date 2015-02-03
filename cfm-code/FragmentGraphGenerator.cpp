@@ -166,8 +166,8 @@ int FragmentGraphGenerator::countExtraElectronPairs( RDKit::RWMol *rwmol ){
 		int Hs = (*ai)->getTotalNumHs();
 		double charge = (*ai)->getFormalCharge();
 		if( charge != 0 ){ 
-			std::cout << "Warning: expecting uncharged atoms. This probably won't work..." << std::endl;
-			return 0;
+			std::cout << "Error: Charged atoms not supported" << std::endl;
+			throw FragmentGraphGenerationException();
 		}
 		int implied_val = (*ai)->getExplicitValence() + (*ai)->getImplicitValence();
 		total_bond_es += (implied_val - Hs);
