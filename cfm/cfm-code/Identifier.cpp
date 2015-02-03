@@ -60,6 +60,9 @@ void Identifier::rankCandidatesForSpecMatch( std::vector<Candidate> &candidates,
 		catch( RDKit::SmilesParseException pe ){
 			std::cout << "Could not parse " << *it->getSmilesOrInchi() << std::endl;		
 		}
+		catch( FragmentGraphGenerationException ){
+			std::cout << "Could not compute fragmentation graph for " << *it->getSmilesOrInchi() << std::endl;
+		}
 
 		it->setScore(score);
 	}
