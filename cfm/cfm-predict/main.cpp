@@ -20,6 +20,9 @@
 #include "Features.h"
 #include "MolData.h"
 
+#include <GraphMol/SanitException.h>
+#include <GraphMol/SmilesParse/SmilesParse.h>
+
 int main(int argc, char *argv[]);
 
 #include <iostream>
@@ -66,16 +69,25 @@ int main(int argc, char *argv[])
 
 	//Read in the parameters
 	Param param( param_filename );
-
 	//Create the MolData structure with the input
  	MolData moldata( "NullId", input_smiles_or_inchi.c_str() );
-	moldata.setIonizationMode(cfg.ionization_mode == NEGATIVE_IONIZATION_MODE);
+	moldata.setIonizationMode(cfg.ionization_mode == NEGATIVE_IONIZATION_MODE);	
+	try{
+		//Calculate the pruned FragmentGraph
+		moldata.computeLikelyFragmentGraphAndSetThetas(&param, &cfg, prob_thresh_for_prune, do_annotate);
 
-	//Calculate the pruned FragmentGraph
-	moldata.computeLikelyFragmentGraphAndSetThetas(&param, &cfg, prob_thresh_for_prune, do_annotate);
-
-	//Predict the spectra (and post-process, use existing thetas)
-	moldata.computePredictedSpectra( param, cfg, true, true );
+		//Predict the spectra (and post-process, use existing thetas)
+		moldata.computePredictedSpectra( param, cfg, true, true );
+	}
+	catch( RDKit::MolSanitizeException e ){
+		std::cout << "Could not sanitize " << moldata.getSmilesOrInchi() << std::endl;
+	}
+	catch( RDKit::SmilesParseException pe ){
+		std::cout << "Could not parse " << moldata.getSmilesOrInchi() << std::endl;		
+	}
+	catch( FragmentGraphGenerationException ){
+		std::cout << "Could not compute fragmentation graph for " << moldata.getSmilesOrInchi() << std::endl;
+	}
 
 	//Set up the output stream
 	std::streambuf * buf;
