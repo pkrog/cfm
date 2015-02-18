@@ -29,6 +29,17 @@ int main(int argc, char *argv[]);
 #include <fstream>
 #include <string>
 
+class SpectrumPredictionException: public std::exception{
+private:
+    std::string message_;
+public:
+	SpectrumPredictionException(const std::string& message) : message_(message) {};
+	virtual const char* what() const throw(){
+		return message_.c_str();
+	}
+};
+
+
 int main(int argc, char *argv[])
 {
 	bool to_stdout = true;
@@ -80,13 +91,16 @@ int main(int argc, char *argv[])
 		moldata.computePredictedSpectra( param, cfg, true, true );
 	}
 	catch( RDKit::MolSanitizeException e ){
-		std::cout << "Could not sanitize " << moldata.getSmilesOrInchi() << std::endl;
+		std::cout << "Could not sanitize input: " << moldata.getSmilesOrInchi() << std::endl;
+		throw SpectrumPredictionException("Could not sanitize input: " + moldata.getSmilesOrInchi());
 	}
 	catch( RDKit::SmilesParseException pe ){
-		std::cout << "Could not parse " << moldata.getSmilesOrInchi() << std::endl;		
+		std::cout << "Could not parse input: " << moldata.getSmilesOrInchi() << std::endl;
+		throw SpectrumPredictionException("Could not parse input: " + moldata.getSmilesOrInchi());		
 	}
 	catch( FragmentGraphGenerationException ){
-		std::cout << "Could not compute fragmentation graph for " << moldata.getSmilesOrInchi() << std::endl;
+		std::cout << "Could not compute fragmentation graph for input: " << moldata.getSmilesOrInchi() << std::endl;
+		throw SpectrumPredictionException("Could not compute fragmentation graph for input: " + moldata.getSmilesOrInchi());
 	}
 
 	//Set up the output stream
