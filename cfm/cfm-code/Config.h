@@ -133,7 +133,7 @@ struct config_t{
 };
 
 void initDefaultConfig( config_t &cfg );
-void initConfig( config_t &cfg, std::string &filename );
+void initConfig( config_t &cfg, std::string &filename, bool report_all = false );
 void initDerivedConfig( config_t &cfg, int energy = -1);
 void initSingleEnergyConfig( config_t &se_cfg, config_t &cfg, int energy );
 
