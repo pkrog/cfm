@@ -52,7 +52,7 @@ void initDefaultConfig( config_t &cfg ){
 }
 
 
-void initConfig( config_t &cfg, std::string &filename ){
+void initConfig( config_t &cfg, std::string &filename, bool report_all ){
 
 	std::string line, name;
 	double value;
@@ -111,30 +111,32 @@ void initConfig( config_t &cfg, std::string &filename ){
 		std::cout << "Warning: Unknown Ionization Mode, reverting to default mode (positive)" << std::endl;
 		cfg.ionization_mode = DEFAULT_IONIZATION_MODE;
 	}
-	std::cout << "Using Lambda " << cfg.lambda << std::endl;
-	std::cout << "Using Lambda Hold " << cfg.lambda_hold << std::endl;
-	std::cout << "Using Converge Count Threshold " << cfg.converge_count_thresh << std::endl;
-	std::cout << "Using EM Convergence Threshold " << cfg.em_converge_thresh << std::endl;
-	std::cout << "Using GA Convergence Threshold " << cfg.ga_converge_thresh << std::endl;
-	std::cout << "Using Fragmentation Graph Depth " << cfg.fg_depth << std::endl;
-	std::cout << "Using Model Depth " << cfg.model_depth << std::endl;
-	std::cout << "Using Spectrum Depths and Weights: ";
-	for( unsigned int i =0; i < cfg.spectrum_depths.size(); i++ )
-		std::cout << "(" << cfg.spectrum_depths[i] << "," << cfg.spectrum_weights[i] << ") ";
-	std::cout << std::endl;
-	if(cfg.interpolate_spectra) std::cout << "Using interpolated spectra with intermediate weights=" << cfg.intermediate_weights << std::endl;
-	else std::cout << "Not interpolated spectra" << std::endl;
-	std::cout << "Using Absolute mass tolerance " << cfg.abs_mass_tol << std::endl;
-	std::cout << "Using PPM mass tolerance" << cfg.ppm_mass_tol << std::endl;
-	std::cout << "Using Line Search Alpha Beta " << cfg.line_search_alpha << " " << cfg.line_search_beta << std::endl;
-	std::cout << "Using Starting Step Size " << cfg.starting_step_size << std::endl;
-	std::cout << "Using Max Line Search Count " << cfg.max_search_count << std::endl;
-	if( cfg.ipfp_algorithm == 0 ) std::cout << "Using standard IPFP" << std::endl;
-	else if( cfg.ipfp_algorithm == 1 ) std::cout << "Using GEMA" << std::endl;
-	else if( cfg.ipfp_algorithm == 2 ) std::cout << "Using IPFP with Oscillatory Adjustment" << std::endl;
-	else std::cout << "Warning: Unknown IPFP algorithm id" << std::endl;
-	std::cout << "Using IPFP Converge Thresh " << cfg.ipfp_converge_thresh << std::endl;
-	std::cout << "Using IPFP Oscillatory Converge Thresh " << cfg.osc_ipfp_converge_thresh << std::endl;
+	if( report_all ){
+		std::cout << "Using Lambda " << cfg.lambda << std::endl;
+		std::cout << "Using Lambda Hold " << cfg.lambda_hold << std::endl;
+		std::cout << "Using Converge Count Threshold " << cfg.converge_count_thresh << std::endl;
+		std::cout << "Using EM Convergence Threshold " << cfg.em_converge_thresh << std::endl;
+		std::cout << "Using GA Convergence Threshold " << cfg.ga_converge_thresh << std::endl;
+		std::cout << "Using Fragmentation Graph Depth " << cfg.fg_depth << std::endl;
+		std::cout << "Using Model Depth " << cfg.model_depth << std::endl;
+		std::cout << "Using Spectrum Depths and Weights: ";
+		for( unsigned int i =0; i < cfg.spectrum_depths.size(); i++ )
+			std::cout << "(" << cfg.spectrum_depths[i] << "," << cfg.spectrum_weights[i] << ") ";
+		std::cout << std::endl;
+		if(cfg.interpolate_spectra) std::cout << "Using interpolated spectra with intermediate weights=" << cfg.intermediate_weights << std::endl;
+		else std::cout << "Not interpolated spectra" << std::endl;
+		std::cout << "Using Absolute mass tolerance " << cfg.abs_mass_tol << std::endl;
+		std::cout << "Using PPM mass tolerance" << cfg.ppm_mass_tol << std::endl;
+		std::cout << "Using Line Search Alpha Beta " << cfg.line_search_alpha << " " << cfg.line_search_beta << std::endl;
+		std::cout << "Using Starting Step Size " << cfg.starting_step_size << std::endl;
+		std::cout << "Using Max Line Search Count " << cfg.max_search_count << std::endl;
+		if( cfg.ipfp_algorithm == 0 ) std::cout << "Using standard IPFP" << std::endl;
+		else if( cfg.ipfp_algorithm == 1 ) std::cout << "Using GEMA" << std::endl;
+		else if( cfg.ipfp_algorithm == 2 ) std::cout << "Using IPFP with Oscillatory Adjustment" << std::endl;
+		else std::cout << "Warning: Unknown IPFP algorithm id" << std::endl;
+		std::cout << "Using IPFP Converge Thresh " << cfg.ipfp_converge_thresh << std::endl;
+		std::cout << "Using IPFP Oscillatory Converge Thresh " << cfg.osc_ipfp_converge_thresh << std::endl;
+	}
 
 }
 
