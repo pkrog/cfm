@@ -16,8 +16,12 @@
 
 
 #include "Util.h"
+#include <GraphMol/RWMol.h>
+#include <GraphMol/SmilesParse/SmilesParse.h>
+#include <GraphMol/MolOps.h>
 #include <GraphMol/PeriodicTable.h>
 #include <GraphMol/AtomIterators.h>
+#include <INCHI-API/inchi.h>
 
 double getMassTol( double abs_tol, double ppm_tol, double mass ){
 	double mass_tol = (mass/1000000.0) * ppm_tol;
@@ -51,4 +55,14 @@ RDKit::Atom *getLabeledAtom( romol_ptr_t mol, const char *label ){
 	}	
 	if( root ) return *ai;
 	else return NULL;
+}
+romol_ptr_t createMolPtr( const char* smiles_or_inchi ){
+	RDKit::RWMol *rwmol;
+	if( std::string(smiles_or_inchi).substr(0,6) == "InChI=" ){
+		RDKit::ExtraInchiReturnValues rv;
+		rwmol = RDKit::InchiToMol( smiles_or_inchi, rv);
+	}else
+		rwmol = RDKit::SmilesToMol( smiles_or_inchi );
+	RDKit::ROMol *mol = static_cast<RDKit::ROMol *>(rwmol);
+	return romol_ptr_t( mol );
 }

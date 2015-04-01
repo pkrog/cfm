@@ -49,6 +49,7 @@ double getMonoIsotopicMass( romol_ptr_t mol, bool addHPlus, bool subtractHPplus)
 
 //Helper function to find an atom with the given label
 RDKit::Atom *getLabeledAtom( romol_ptr_t mol, const char *label );
+romol_ptr_t createMolPtr( const char* smiles_or_inchi );
 
 /* given log(x) and log(y), compute log(x+y). uses the following identity:
    log(x + y) = log(x) + log(1 + y/x) = log(x) + log(1+exp(log(y)-log(x))) */
