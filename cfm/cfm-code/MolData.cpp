@@ -32,6 +32,11 @@
 #include <iostream>
 #include <fstream>
 
+double MolData::getMolecularWeight() const{
+	romol_ptr_t mol = createMolPtr( smiles_or_inchi.c_str() );
+	return getMonoIsotopicMass( mol, !using_negative_mode, using_negative_mode );
+}
+
 void MolData::setIonizationMode(bool is_negative_mode){
 	using_negative_mode = is_negative_mode;
 	if( is_negative_mode ){
@@ -554,6 +559,44 @@ void MolData::writePredictedSpectraToFile( std::string &filename ){
 	of.close();
 }
 
+void MolData::writePredictedSpectraToMspFileStream( std::ostream &out ){
+	for( unsigned int energy = 0; energy < predicted_spectra.size(); energy++ )
+		writePredictedSpectrumToMspFileStream( out, energy );
+}
+
+void MolData::writePredictedSpectrumToMspFileStream( std::ostream &out, int energy ){
+	
+	if( !using_negative_mode )
+		out << "Name: +ve in-silico MS/MS by CFM-ID for " << id << std::endl;
+	else
+		out << "Name: -ve in-silico MS/MS by CFM-ID for " << id << std::endl;
+	out << "ID: " << id << std::endl;
+	out << "Comment: Energy" << energy << std::endl;
+	const Spectrum *spec = getPredictedSpectrum( energy );
+	out << "Num peaks: " << spec->size() << std::endl;
+	outputSpectrum( out, spec, false );
+	out << std::endl;
+}
+
+void MolData::writePredictedSpectraToMgfFileStream( std::ostream &out ){
+	for( unsigned int energy = 0; energy < predicted_spectra.size(); energy++ )
+		writePredictedSpectrumToMgfFileStream( out, energy );
+}
+
+void MolData::writePredictedSpectrumToMgfFileStream( std::ostream &out, int energy ){
+	
+	out << "BEGIN IONS" << std::endl;
+	out << "PEPMASS=" << std::setprecision(10) << getMolecularWeight() << std::endl;
+	if( !using_negative_mode ) out << "CHARGE=1+" <<  std::endl;
+	else out << "CHARGE=1-" <<  std::endl;
+	out << "TITLE=" << id << ";Energy" << energy << ";";
+	if( !using_negative_mode ) out << "[M+H]+;In-silico MS/MS by CFM-ID;" << std::endl;
+	else out << "[M-H]+;In-silico MS/MS by CFM-ID;" << std::endl;
+	const Spectrum *spec = getPredictedSpectrum( energy );
+	outputSpectrum( out, spec, false );
+	out << "END IONS" << std::endl;
+}
+
 void MolData::writeFullEnumerationSpectrumToFile( std::string &filename ){
 	
 	std::ofstream of;
@@ -608,25 +651,29 @@ void MolData::outputSpectra( std::ostream &out, const char*spec_type, bool do_an
 	std::vector<Spectrum>::iterator it = spectra_to_output->begin();
 	for( int energy = 0; it != spectra_to_output->end(); ++it, energy++ ){
 		out << "energy" << energy << std::endl;
+		outputSpectrum( out, &(*it), do_annotate );
+	}
+}
 
-		Spectrum::iterator itp = it->begin();
-		for( ; itp != it->end(); ++itp ){
-			out << std::setprecision(10) << itp->mass << " " << itp->intensity;
-			if(do_annotate){
-				std::stringstream ss_values;
-				ss_values << std::setprecision(5) << "(";
-				std::vector<annotation_t>::iterator ita = itp->annotations.begin();
-				for( ; ita != itp->annotations.end(); ++ita ){
-					out << " " << ita->first;
-					if( ita != itp->annotations.begin() ) ss_values << " ";
-					ss_values << ita->second*100.0;
-				}
-				ss_values << ")";
-				if( itp->annotations.size() > 0 )
-					out << " " << ss_values.str();
+void MolData::outputSpectrum( std::ostream &out, const Spectrum *spec, bool do_annotate ){
+	
+	Spectrum::const_iterator itp = spec->begin();
+	for( ; itp != spec->end(); ++itp ){
+		out << std::setprecision(10) << itp->mass << " " << itp->intensity;
+		if(do_annotate){
+			std::stringstream ss_values;
+			ss_values << std::setprecision(5) << "(";
+			std::vector<annotation_t>::const_iterator ita = itp->annotations.begin();
+			for( ; ita != itp->annotations.end(); ++ita ){
+				out << " " << ita->first;
+				if( ita != itp->annotations.begin() ) ss_values << " ";
+				ss_values << ita->second*100.0;
 			}
-			out << std::endl;
+			ss_values << ")";
+			if( itp->annotations.size() > 0 )
+				out << " " << ss_values.str();
 		}
+		out << std::endl;
 	}
 }
 

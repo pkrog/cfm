@@ -83,10 +83,15 @@ public:
 	int getGroup(){ return group; };
 	std::string getId(){ return id; };
 	std::string getSmilesOrInchi(){ return smiles_or_inchi; };
+	double getMolecularWeight() const;
 
 	void readInSpectraFromFile( const std::string &filename, bool readToPredicted = false );
 	void removePeaksWithNoFragment( double abs_tol, double ppm_tol );
 	void writePredictedSpectraToFile( std::string &filename );
+	void writePredictedSpectraToMspFileStream( std::ostream &out );
+	void writePredictedSpectraToMgfFileStream( std::ostream &out );
+	void writePredictedSpectrumToMspFileStream( std::ostream &out, int energy );
+	void writePredictedSpectrumToMgfFileStream( std::ostream &out, int energy );
 	void writeFullEnumerationSpectrumToFile( std::string &filename );
 	void outputSpectra( std::ostream &out, const char*spec_type, bool do_annotate = false );
 	void createInterpolatedSpectra( config_t &cfg );
@@ -164,6 +169,7 @@ protected:	//These features are protected rather than private for access during 
 	static void postprocessSpectrum( Spectrum &spectrum );
 	static void normalizeAndSortSpectrum( Spectrum &spectrum );
 	static void sortAndNormalizeAnnotations(Spectrum &spectrum);
+	static void outputSpectrum( std::ostream &out, const Spectrum *spec, bool do_annotate );
 
 };
 

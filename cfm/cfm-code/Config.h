@@ -83,11 +83,14 @@ static const double DEFAULT_LINE_SEARCH_ALPHA = 0.1;
 static const double DEFAULT_LINE_SEARCH_BETA = 0.5;
 static const int DEFAULT_MAX_SEARCH_COUNT = 20;
 
-
-
 static const int POSITIVE_IONIZATION_MODE = 1;
 static const int NEGATIVE_IONIZATION_MODE = 2;
 static const int DEFAULT_IONIZATION_MODE = POSITIVE_IONIZATION_MODE;
+
+//Mode for writing spectra to output
+static const int NO_OUTPUT_MODE = 0;
+static const int MSP_OUTPUT_MODE = 1;
+static const int MGF_OUTPUT_MODE = 2;
 
 //Configuration
 struct config_t{
