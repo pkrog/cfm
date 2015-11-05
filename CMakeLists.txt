@@ -63,6 +63,19 @@ if ( INCLUDE_TRAIN OR INCLUDE_TESTS )
     endif ()
 endif ()
 
+# LBFGS
+if ( INCLUDE_TRAIN OR INCLUDE_TESTS )
+	set ( LBFGS_INCLUDE_DIR "" CACHE STRING "Where are the lbfgs headers?" )
+	set ( LBFGS_LIBRARY_DIR "" CACHE STRING "Where are the lbfgs libraries?" )
+	include_directories ( ${LBFGS_INCLUDE_DIR} )
+	link_directories ( ${LBFGS_LIBRARY_DIR} )
+	find_library(LBFGS_LIBRARY NAMES lbfgs PATHS ${LBFGS_LIBRARY_DIR})
+	if (NOT LBFGS_LIBRARY)
+	  MESSAGE(FATAL_ERROR "Cannot find LBFGS libraries!")
+	endif (NOT LBFGS_LIBRARY)
+	mark_as_advanced( LBFGS_LIBRARY )
+endif ()
+
 #Common Library
 add_subdirectory( cfm-code )
 

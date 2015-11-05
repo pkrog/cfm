@@ -20,6 +20,9 @@
 
 void Comparator::getMatchingPeakPairs( std::vector<peak_pair_t> &peak_pairs,  const Spectrum *p, const Spectrum *q ) const{
 	
+	//Check that the input spectra are sorted and normalized correctly
+	if( !p->isNormalizedAndSorted() || !q->isNormalizedAndSorted() ) throw ComparatorException();
+
 	//Use Dynamic Programming to find the best match between peaks 
 	//such that each peak matches at most one other
 	std::vector< std::vector<double> > dp_vals(p->size()+1);
@@ -63,8 +66,8 @@ void Comparator::getMatchingPeakPairs( std::vector<peak_pair_t> &peak_pairs,  co
 		else if( fabs(dp_vals[i][j] - dp_vals[i-1][j]) < 1e-12 ) i--;
 		else if( dp_vals[i][j] > dp_vals[i-1][j-1] + 1e-12 ){
 			peak_pairs.push_back(peak_pair_t());
-			peak_pairs.back().first = (*p)[i-1];
-			peak_pairs.back().second = (*q)[j-1];			
+			peak_pairs.back().first = *p->getPeak(i-1);
+			peak_pairs.back().second = *q->getPeak(j-1);			
 			i--; j--;
 		}
 	}
@@ -90,6 +93,14 @@ double DotProduct::computeScore( const Spectrum *measured, const Spectrum *predi
 	return num*num/(denomp*denomq);
 }
 
+double DotProduct::getAdjustedIntensity( double intensity, double mass ) const{
+	return std::pow(intensity, 0.5)*std::pow(mass, 0.5);
+}
+
+double OrigSteinDotProduct::getAdjustedIntensity( double intensity, double mass ) const{
+	return std::pow(intensity, 0.6)*std::pow(mass, 3);
+}
+
 double DotProduct::getTotalPeakSum( const Spectrum *spectrum ) const{
 
 	double result = 0.0;
@@ -101,12 +112,7 @@ double DotProduct::getTotalPeakSum( const Spectrum *spectrum ) const{
 	return result;
 }
 
-double DotProduct::getAdjustedIntensity( double intensity, double mass ) const{
-	//return std::pow(intensity, 0.6)*std::pow(mass, 3);
-	return std::pow(intensity, 0.5)*std::pow(mass, 0.5);
-}
-
-double Precision::computeScore( const Spectrum *measured, const Spectrum *predicted ) const{
+double Precision::computeScore( const Spectrum *measured, const Spectrum *predicted ) const {
 
 	std::vector<peak_pair_t> peak_pairs;
 	getMatchingPeakPairs( peak_pairs, measured, predicted );
@@ -116,7 +122,17 @@ double Precision::computeScore( const Spectrum *measured, const Spectrum *predic
 
 }
 
-double WeightedRecall::computeScore( const Spectrum *measured, const Spectrum *predicted ) const{
+double Recall::computeScore( const Spectrum *measured, const Spectrum *predicted ) const {
+
+	std::vector<peak_pair_t> peak_pairs;
+	getMatchingPeakPairs( peak_pairs, measured, predicted );
+
+	if( measured->size() == 0 ) return 0.0;
+	return (double)peak_pairs.size() * 100.0 / (double)measured->size();
+
+}
+
+double WeightedRecall::computeScore( const Spectrum *measured, const Spectrum *predicted ) const {
 
 	std::vector<peak_pair_t> peak_pairs;
 	getMatchingPeakPairs( peak_pairs, measured, predicted);
@@ -138,10 +154,74 @@ double WeightedRecall::computeScore( const Spectrum *measured, const Spectrum *p
 	return num*100.0/den;
 }
 
+double WeightedPrecision::computeScore( const Spectrum *measured, const Spectrum *predicted ) const{
+
+	std::vector<peak_pair_t> peak_pairs;
+	getMatchingPeakPairs( peak_pairs, measured, predicted);
+
+	if( predicted->size() == 0 ) return 0.0;
+	
+	//Numerator
+	double num = 0.0;
+	std::vector<peak_pair_t>::iterator it = peak_pairs.begin();
+	for( ; it != peak_pairs.end(); ++it )
+		num += it->second.intensity;
+
+	//Denominator
+	Spectrum::const_iterator itc = predicted->begin();
+	double den = 0.0;
+	for( ; itc != predicted->end(); ++itc )
+		den += itc->intensity;
+
+	return num*100.0/den;
+}
+
+double WeightedJaccard::computeScore( const Spectrum *measured, const Spectrum *predicted ) const{
+
+	std::vector<peak_pair_t> peak_pairs;
+	getMatchingPeakPairs( peak_pairs, measured, predicted);
+	double num = 0.0;
+	std::vector<peak_pair_t>::iterator it = peak_pairs.begin();
+	for( ; it != peak_pairs.end(); ++it ){
+		num += it->first.intensity;
+		num += it->second.intensity;
+	}
+	return num/200.0;
+}
+
+
 double Jaccard::computeScore( const Spectrum *measured, const Spectrum *predicted ) const{
 
 	std::vector<peak_pair_t> peak_pairs;
 	getMatchingPeakPairs( peak_pairs, measured, predicted);
 	return 2*(double)peak_pairs.size()/(measured->size() + predicted->size());
 
+}
+
+double Combined::computeScore( const Spectrum *measured, const Spectrum *predicted ) const{
+
+	DotProduct dp( ppm_tol, abs_tol );
+	WeightedRecall wr( ppm_tol, abs_tol );
+	WeightedPrecision wp( ppm_tol, abs_tol );
+	Jaccard ja( ppm_tol, abs_tol );
+	double dp_score = 100.0 * dp.computeScore(measured, predicted);
+	double ja_score = 100.0 * ja.computeScore(measured, predicted);
+	double wp_score = wp.computeScore(measured, predicted);
+	double wr_score = wr.computeScore(measured, predicted);
+	std::cout << dp_score << " " << ja_score << " " << wp_score << " " << wr_score;
+	return dp_score + ja_score + wp_score + wr_score;
+
+}
+
+void ScatterOutput::outputData( const Spectrum *measured, const Spectrum *predicted ){
+
+	std::vector<peak_pair_t> peak_pairs;
+	getMatchingPeakPairs( peak_pairs, measured, predicted);
+	
+	//Write the pairs to file
+	std::vector<peak_pair_t>::iterator it = peak_pairs.begin();
+	for( ; it != peak_pairs.end(); ++it ){
+		out << it->first.mass << " " << it->first.intensity << " ";
+		out << it->second.mass << " " << it->second.intensity << std::endl;
+	}
 }

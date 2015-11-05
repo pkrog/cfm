@@ -33,18 +33,6 @@ public:
 	void runTest();
 };
 
-class IPFPTestComputeBeliefsInterpolate : public Test {
-public:
-	IPFPTestComputeBeliefsInterpolate();
-	void runTest();
-};
-
-class IPFPTestComputeBeliefsInterpolateNoDirect : public Test {
-public:
-	IPFPTestComputeBeliefsInterpolateNoDirect();
-	void runTest();
-};
-
 class IPFPTestComputeBeliefsSingleEnergy : public Test {
 public:
 	IPFPTestComputeBeliefsSingleEnergy();

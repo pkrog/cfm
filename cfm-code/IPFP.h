@@ -40,8 +40,6 @@ static const int IPFP_WITH_MOD_ALGORITHM = 2;
 
 struct config_t;
 
-typedef std::vector<std::vector<double> > spec_factor_t; 
-
 //Exception to throw when the input feature configuration file is invalid 
 class UnknownIPFPAlgorithmException: public std::exception{
 

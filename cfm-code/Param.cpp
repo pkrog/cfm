@@ -16,6 +16,7 @@
 #########################################################################*/
 
 #include "Param.h"
+#include "Config.h"
 
 #include <string>
 #include <iostream>
@@ -24,14 +25,14 @@
 #include <vector>
 
 //Constructor to initialise parameter weight size from a feature list
-Param::Param( std::vector<std::string> a_feature_list, int a_num_levels ){
-	feature_list = a_feature_list; 
-	num_energy_levels = a_num_levels;
+Param::Param( std::vector<std::string> a_feature_list, int a_num_energy_levels ) :
+	feature_list(a_feature_list), num_energy_levels(a_num_energy_levels) {
 	
 	FeatureCalculator fc( feature_list );
 	unsigned int len = fc.getNumFeatures();
 	unsigned int total_len = len * num_energy_levels;
 	weights.resize( total_len );
+	expected_num_input_features = len;
 }
 
 //Constructor to create skeleton parameter copy 
@@ -72,6 +73,22 @@ void Param::appendNextEnergyParams( Param &next_param, int energy ){
 		weights[start_offset + i] = (*new_weights)[i + new_start_offset];
 }
 
+//Append a repeat of the highest energy's parameters (used to initialise high params with med etc).
+void Param::appendRepeatedPrevEnergyParams(){
+	
+	//Fetch the dimensions of the current weights
+	int num_per_e_level = weights.size()/num_energy_levels;
+	
+	//Append the repeated parameters
+	unsigned int to_offset = weights.size();
+	unsigned int from_offset = weights.size() - num_per_e_level;
+	num_energy_levels++;
+
+	weights.resize( num_energy_levels*num_per_e_level );
+	for( unsigned int i = 0; i < num_per_e_level; i++ )
+		weights[to_offset + i] = weights[from_offset + i];
+}
+
 //Randomly initialise all weights
 void Param::randomInit(){
 
@@ -104,20 +121,20 @@ void Param::zeroInit(){
 //Set all weights to zero
 void Param::fullZeroInit(){
 
-	// Non-Bias Terms: All 0.0	
+	// All Terms 0.0	
 	for( unsigned int i = 0; i < weights.size(); i++ )
 		weights[i] = 0.0;
 
 }
 
-double Param::computeTheta( FeatureVector &fv, int energy ){
+double Param::computeTheta( const FeatureVector &fv, int energy ){
 	
 	double theta = 0.0;
 	
 	//Check Feature Length
 	int len = fv.getTotalLength();
-	if( len * num_energy_levels != weights.size() ){
-		std::cout << "Expecting feature vector of length " << weights.size()/num_energy_levels;
+	if( len != expected_num_input_features ){
+		std::cout << "Expecting feature vector of length " << expected_num_input_features;
 		std::cout << " but found " << len << std::endl;
 		throw( ParamFeatureMismatchException() );
 	}
@@ -130,6 +147,17 @@ double Param::computeTheta( FeatureVector &fv, int energy ){
 	return theta;
 }
 
+void Param::adjustWeightsByGrads( std::vector<double> &grads, std::set<unsigned int> &used_idxs, double learning_rate, double momentum, std::vector<double> &prev_v ){
+
+	std::set<unsigned int>::iterator it = used_idxs.begin();
+	for( ; it != used_idxs.end(); ++it ){
+		double v = momentum*prev_v[*it] + learning_rate*grads[*it];
+		weights[*it] += v;
+		prev_v[*it] = v;
+	}
+}
+
+
 void Param::saveToFile( std::string &filename ){
 
 	std::ofstream out;
@@ -138,8 +166,18 @@ void Param::saveToFile( std::string &filename ){
 		std::cout << "Warning: Trouble opening parameter file" << std::endl;
 	}else{
 
+		//Check the number of non-zero weights
+		std::vector<double>::iterator itt = weights.begin();
+		int num_used = 0;
+		for( ; itt != weights.end(); ++itt )
+			num_used += ( *itt != 0 );
+
+		//Determine whether or not to use the sparse format
+		bool use_sparse = false;
+		if( (double)num_used/weights.size() < 0.25 ) use_sparse = true;
+
 		//Use sparse format
-		out << "SPARSE" << std::endl;
+		if(use_sparse) out << "SPARSE" << std::endl;
 
 		//Print out the number of feature names
 		out << feature_list.size() << std::endl;
@@ -156,23 +194,30 @@ void Param::saveToFile( std::string &filename ){
 		//Print out the total length of the weights
 		out << weights.size() << std::endl;
 
-		//Check the number of non-zero weights
-		std::vector<double>::iterator itt = weights.begin();
-		int num_used = 0;
-		for( ; itt != weights.end(); ++itt )
-			num_used += ( *itt != 0 );
-		out << num_used << std::endl;
+		//Print out the number of used weights
+		if(use_sparse) out << num_used << std::endl;
 
-		//Print out the used weights (in lines of 20)
-		out << std::setprecision(6);
-		itt = weights.begin();
-		for( int count = 0, idx = 0; itt != weights.end(); ++itt, idx++ ){ 
-			if( *itt != 0 ){
-				out << idx << " " << *itt;
-				if( count % 20 == 19 ) out << std::endl;
-				else out << " ";
-				count++;
+		out << std::setprecision(8);
+		if(use_sparse){
+			//Print out the used weights with indexes (in lines of 20)
+			itt = weights.begin();
+			for( int count = 0, idx = 0; itt != weights.end(); ++itt, idx++ ){ 
+				if( *itt != 0 ){
+					out << idx << " " << *itt;
+					if( count % 20 == 19 ) out << std::endl;
+					else out << " ";
+					count++;
+				}
 			}
+		}
+		else{
+			//Print out all the weights (in lines of 50) - no indexes
+			itt = weights.begin();
+			for( int idx = 0; itt != weights.end(); ++itt, idx++ ){ 
+					out << *itt;
+					if( idx % 50 == 49 ) out << std::endl;
+					else out << " ";
+			}		
 		}
 		out << std::endl;
 		out.close();
@@ -197,7 +242,7 @@ Param::Param( std::string &filename ){
 	//Get the number of feature names
 	int num_features = atoi(line.c_str());
 
-	//Get the feature names
+	//Get the feature names and compute the expected number of features
 	std::string fname;
 	getline( ifs, line );
 	std::stringstream ss1(line);
@@ -205,6 +250,8 @@ Param::Param( std::string &filename ){
 		ss1 >> fname;
 		feature_list.push_back( fname );
 	}
+	FeatureCalculator fc( feature_list );
+	expected_num_input_features = fc.getNumFeatures();
 
 	//Get the number of energy levels
 	getline( ifs, line );

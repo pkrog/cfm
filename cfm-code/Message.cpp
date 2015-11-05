@@ -85,3 +85,11 @@ Message &Message::operator=(const Message &rhs){
 	return *this;
 }
 
+void Message::print(){
+	if( !normalized ) normalize();
+	iterator it = message.begin();
+	for( ; it != message.end(); ++it )
+		if( exp(*it) > 0.001 ) 
+			std::cout << it.index() << ": " << exp(*it) << ", ";
+	std::cout << std::endl;
+}

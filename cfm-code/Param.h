@@ -22,7 +22,7 @@
 
 #include <string>
 
-//Exception to throw when the input feature configuration file is invalid 
+//Exception to throw when the input feature vector configuration doesn't match the parameters
 class ParamFeatureMismatchException: public std::exception{
 
 	virtual const char* what() const throw(){
@@ -30,10 +30,11 @@ class ParamFeatureMismatchException: public std::exception{
 	}
 };
 
+
 class Param{
 public:
 	//Constructor to initialise parameter weight size from a feature list
-	Param( std::vector<std::string> a_feature_list, int a_num_levels );
+	Param( std::vector<std::string> a_feature_list, int a_num_energy_levels );
 
 	//Constructor to create skeleton parameter copy 
 	//(doesn't actually copy weights, just resizes to same)
@@ -47,14 +48,19 @@ public:
 	//or just the energy level specified.
 	void appendNextEnergyParams( Param &next_param, int energy = -1 );
 
+	//Copy the highest energy parameters to create another higher energy level
+	void appendRepeatedPrevEnergyParams();
+
 	//Initialisation options
-	void randomInit();
+	virtual void randomInit();
 	void zeroInit();
 	void fullZeroInit();
 
 	//Compute the theta value for an input feature vector and energy based
 	//on the current weight settings
-	double computeTheta( FeatureVector &fv, int energy );
+	virtual double computeTheta( const FeatureVector &fv, int energy );
+
+	void adjustWeightsByGrads( std::vector<double> &grads, std::set<unsigned int> &used_idxs, double learning_rate, double momentum, std::vector<double> &prev_v );
 
 	//Set the value of a weight
 	void setWeightAtIdx( double value, int index ){ weights[index] = value; };
@@ -63,7 +69,7 @@ public:
 	void reportParameters( std::ostream &out );
 
 	//Save parameters to file
-	void saveToFile( std::string &filename );
+	virtual void saveToFile( std::string &filename );
 
 	//Access functions
 	double getWeightAtIdx(int index){ return weights[index];};
@@ -73,10 +79,11 @@ public:
 	unsigned int const getNumEnergyLevels(){ return num_energy_levels; };
 	std::vector<std::string> *const getFeatureNames(){ return &feature_list; };
 
-private:
+protected:
 	std::vector<double> weights;
 	unsigned int num_energy_levels;
 	std::vector<std::string> feature_list;
+	int expected_num_input_features;
 
 };
 

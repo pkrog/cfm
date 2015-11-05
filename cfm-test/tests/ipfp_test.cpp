@@ -18,27 +18,28 @@
 #include <GraphMol/RDKitBase.h>
 #include <RDGeneral/types.h>
 
+std::vector<int> ipfp_null_eloc;
+
 class IPFPTestMolConverge : public MolData {
 public:
-	IPFPTestMolConverge() : MolData("IPFP Test Mol Converge Case", ""){
+	IPFPTestMolConverge(config_t *cfg) : MolData("IPFP Test Mol Converge Case", "", cfg){
 	
-		setIonizationMode(false);
-
 		//Create a molecule based on what was previously in test_bn_transition_ipfp.txt
-		(*fg) = new FragmentGraph();
-		romol_ptr_t basic_nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl, -1, -1, false), -1 ); //id = 0
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl, -1, -1, false), 0 ); // id = 1, 0 -> 1
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl, -1, -1, false), 0 ); //id = 2, 0 -> 2
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, -1, -1, false), 2 ); // id = 3, 2 -> 3
+		fg = new FragmentGraph();
+		FeatureHelper fh;
+		romol_ptr_t basic_nl = createMolPtr("C") ;
+		fg->addToGraph( FragmentTreeNode( createMolPtr("O=C(O)C[NH2+]C(=O)C(NC(=O)CN)Cc1ccccc1"), basic_nl, -1, -1, &fh, ipfp_null_eloc), -1 ); //id = 0
+		fg->addToGraph( FragmentTreeNode( createMolPtr("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1"), basic_nl, -1, -1, &fh, ipfp_null_eloc), 0 ); // id = 1, 0 -> 1
+		fg->addToGraph( FragmentTreeNode( createMolPtr("N=CC(=O)[NH2+]CCc1ccccc1"), basic_nl, -1, -1, &fh, ipfp_null_eloc), 0 ); //id = 2, 0 -> 2
+		fg->addToGraph( FragmentTreeNode( createMolPtr("[NH2+]=CCc1ccccc1"), basic_nl, -1, -1, &fh, ipfp_null_eloc), 2 ); // id = 3, 2 -> 3
 
 		//Set thetas/transition probs to match matlab reference2
-		(*thetas).resize( 3 );
+		thetas.resize( 3 );
 		for( int energy = 0; energy < 3; energy++ ){
-			(*thetas)[energy].resize( (*fg)->getNumTransitions() );
-			(*thetas)[energy][0] = 1.386294361119891;	//0->1
-			(*thetas)[energy][1] = 2.456735772821304;	//0->2
-			(*thetas)[energy][2] = 0.0;	//2->3
+			thetas[energy].resize( fg->getNumTransitions() );
+			thetas[energy][0] = 1.386294361119891;	//0->1
+			thetas[energy][1] = 2.456735772821304;	//0->2
+			thetas[energy][2] = 0.0;	//2->3
 		}
 		computeTransitionProbabilities();
 
@@ -51,32 +52,31 @@ public:
 		spectra[1].push_back( Peak(177.106284, 33.000500) );
 		spectra[2].push_back( Peak(120.081802, 100.00000) );
 		for( int i = 0; i <=2; i++ ) 
-			MolData::normalizeAndSortSpectrum(spectra[i]);
+			spectra[i].normalizeAndSort();
 
 	}
 };
 
 class IPFPTestMolNonConverge : public MolData {
 public:
-	IPFPTestMolNonConverge() : MolData("IPFP Test Mol Non-Converge Case", ""){
-
-		setIonizationMode(false);
+	IPFPTestMolNonConverge(config_t *cfg) : MolData("IPFP Test Mol Non-Converge Case", "", cfg){
 
 		//Create a molecule based on what was previously in test_bn_transition_ipfp_nonconverge.txt
-		(*fg) = new FragmentGraph();
-		romol_ptr_t basic_nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl, -1, -1, false), -1 ); //id = 0
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl, -1, -1, false), 0 ); // id = 1, 0 -> 1
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl, -1, -1, false), 0 ); //id = 2, 0 -> 2
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, -1, -1, false), 2 ); // id = 3, 2 -> 3
+		fg = new FragmentGraph();
+		romol_ptr_t basic_nl = createMolPtr("C");
+		FeatureHelper fh;
+		fg->addToGraph( FragmentTreeNode( createMolPtr("O=C(O)C[NH2+]C(=O)C(NC(=O)CN)Cc1ccccc1"), basic_nl, -1, -1, &fh, ipfp_null_eloc), -1 ); //id = 0
+		fg->addToGraph( FragmentTreeNode( createMolPtr("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1"), basic_nl, -1, -1, &fh, ipfp_null_eloc), 0 ); // id = 1, 0 -> 1
+		fg->addToGraph( FragmentTreeNode( createMolPtr("N=CC(=O)[NH2+]CCc1ccccc1"), basic_nl, -1, -1, &fh, ipfp_null_eloc), 0 ); //id = 2, 0 -> 2
+		fg->addToGraph( FragmentTreeNode( createMolPtr("[NH2+]=CCc1ccccc1"), basic_nl, -1, -1, &fh, ipfp_null_eloc), 2 ); // id = 3, 2 -> 3
 
 		//Set thetas/transition probs to match matlab reference2
-		(*thetas).resize( 3 );
+		thetas.resize( 3 );
 		for( int energy = 0; energy < 3; energy++ ){
-			(*thetas)[energy].resize( (*fg)->getNumTransitions() );
-			(*thetas)[energy][0] = 1.386294361119891;	//0->1
-			(*thetas)[energy][1] = 2.456735772821304;	//0->2
-			(*thetas)[energy][2] = 0.0;	//2->3
+			thetas[energy].resize( fg->getNumTransitions() );
+			thetas[energy][0] = 1.386294361119891;	//0->1
+			thetas[energy][1] = 2.456735772821304;	//0->2
+			thetas[energy][2] = 0.0;	//2->3
 		}
 		computeTransitionProbabilities();
 
@@ -91,34 +91,33 @@ public:
 		spectra[2].push_back( Peak(120.081802, 100.00000) );
 		spectra[2].push_back( Peak(177.106284, 100.00000) );
 		for( int i = 0; i <=2; i++ ) 
-			MolData::normalizeAndSortSpectrum(spectra[i]);
+			spectra[i].normalizeAndSort();
 	}
 };
 
 class IPFPTestMolSharedMass : public MolData {
 public:
-	IPFPTestMolSharedMass() : MolData("IPFP Test Mol Shared Mass Case", ""){
+	IPFPTestMolSharedMass(config_t *cfg) : MolData("IPFP Test Mol Shared Mass Case", "", cfg){
 	
-		setIonizationMode(false);
-
 		//Create a molecule based on what was previously in test_bn_transition_ipfp_sharedmass.txt
-		(*fg) = new FragmentGraph();
-		romol_ptr_t basic_nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl,-1, -1, false), -1 ); //id = 0
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl,-1, -1, false), 0 ); // id = 1, 0 -> 1
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl,-1, -1, false), 0 ); //id = 2, 0 -> 2
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl,-1, -1, false), 2 ); // id = 3, 2 -> 3
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC[NH2+]C(=O)Cc1ccccc1")) ), basic_nl,-1, -1, false), 0 ); //id = 4, 0 -> 4
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl,-1, -1, false), 4 ); //  4 -> 3		
+		fg = new FragmentGraph();
+		romol_ptr_t basic_nl = createMolPtr("C");
+		FeatureHelper fh;
+		fg->addToGraph( FragmentTreeNode( createMolPtr("O=C(O)C[NH2+]C(=O)C(NC(=O)CN)Cc1ccccc1"), basic_nl,-1, -1, &fh, ipfp_null_eloc), -1 ); //id = 0
+		fg->addToGraph( FragmentTreeNode( createMolPtr("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1"), basic_nl,-1, -1, &fh, ipfp_null_eloc), 0 ); // id = 1, 0 -> 1
+		fg->addToGraph( FragmentTreeNode( createMolPtr("N=CC(=O)[NH2+]CCc1ccccc1"), basic_nl,-1, -1, &fh, ipfp_null_eloc), 0 ); //id = 2, 0 -> 2
+		fg->addToGraph( FragmentTreeNode( createMolPtr("[NH2+]=CCc1ccccc1"), basic_nl,-1, -1, &fh, ipfp_null_eloc), 2 ); // id = 3, 2 -> 3
+		fg->addToGraph( FragmentTreeNode( createMolPtr("N=CC[NH2+]C(=O)Cc1ccccc1"), basic_nl,-1, -1, &fh, ipfp_null_eloc), 0 ); //id = 4, 0 -> 4
+		fg->addToGraph( FragmentTreeNode( createMolPtr("[NH2+]=CCc1ccccc1"), basic_nl,-1, -1, &fh, ipfp_null_eloc), 4 ); //  4 -> 3		
 
 		//Set thetas/transition probs to match matlab reference2
-		(*thetas).resize( 3 );
+		thetas.resize( 3 );
 		for( int energy = 0; energy < 3; energy++ ){
-			(*thetas)[energy].resize( (*fg)->getNumTransitions() );
-			(*thetas)[energy][0] = 1.386294361119891;	//0->1
-			(*thetas)[energy][1] = 2.456735772821304;	//0->2
-			(*thetas)[energy][2] = 0.0;	//2->3
-			(*thetas)[energy][3] = 5.0;	//0->4
+			thetas[energy].resize( fg->getNumTransitions() );
+			thetas[energy][0] = 1.386294361119891;	//0->1
+			thetas[energy][1] = 2.456735772821304;	//0->2
+			thetas[energy][2] = 0.0;	//2->3
+			thetas[energy][3] = 5.0;	//0->4
 		}
 		computeTransitionProbabilities();
 
@@ -131,33 +130,31 @@ public:
 		spectra[1].push_back( Peak(177.106284, 33.000500) );
 		spectra[2].push_back( Peak(120.081802, 100.00000) );
 		for( int i = 0; i <=2; i++ ) 
-			MolData::normalizeAndSortSpectrum(spectra[i]);
+			spectra[i].normalizeAndSort();
 	}
 };
 
 class IPFPTestMolInterpolate : public MolData {
 public:
-	IPFPTestMolInterpolate() : MolData("IPFP Test Mol Interpolation Case", ""){
-	
-		setIonizationMode(false);
+	IPFPTestMolInterpolate(config_t *cfg) : MolData("IPFP Test Mol Interpolation Case", "", cfg){
 
 		//Create a molecule based on what was previously in test_bn_transition_ipfp_interp.txt
-		(*fg) = new FragmentGraph();
-		romol_ptr_t basic_nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl,-1, -1, false), -1 ); //id = 0
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl,-1, -1, false), 0 ); // id = 1, 0 -> 1
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl,-1, -1, false), 0 ); //id = 2, 0 -> 2
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl,-1, -1, false), 1 ); //1 -> 2
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, -1, -1, false),2 ); // id = 3, 2 -> 3	
+		fg = new FragmentGraph(); FeatureHelper fh;
+		romol_ptr_t basic_nl = createMolPtr("C");
+		fg->addToGraph( FragmentTreeNode( createMolPtr("O=C(O)C[NH2+]C(=O)C(NC(=O)CN)Cc1ccccc1"), basic_nl,-1, -1, &fh, ipfp_null_eloc), -1 ); //id = 0
+		fg->addToGraph( FragmentTreeNode( createMolPtr("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1"), basic_nl,-1, -1, &fh, ipfp_null_eloc), 0 ); // id = 1, 0 -> 1
+		fg->addToGraph( FragmentTreeNode( createMolPtr("N=CC(=O)[NH2+]CCc1ccccc1"), basic_nl,-1, -1, &fh, ipfp_null_eloc), 0 ); //id = 2, 0 -> 2
+		fg->addToGraph( FragmentTreeNode( createMolPtr("N=CC(=O)[NH2+]CCc1ccccc1"), basic_nl,-1, -1, &fh, ipfp_null_eloc), 1 ); //1 -> 2
+		fg->addToGraph( FragmentTreeNode( createMolPtr("[NH2+]=CCc1ccccc1"), basic_nl, -1, -1, &fh, ipfp_null_eloc),2 ); // id = 3, 2 -> 3	
 
 		//Set thetas/transition probs to match matlab reference2
-		(*thetas).resize( 3 );
+		thetas.resize( 3 );
 		for( int energy = 0; energy < 3; energy++ ){
-			(*thetas)[energy].resize( (*fg)->getNumTransitions() );
-			(*thetas)[energy][0] = 1.386294361119891;	//0->1
-			(*thetas)[energy][1] = 2.456735772821304;	//0->2
-			(*thetas)[energy][2] = 5.0;	//1->2
-			(*thetas)[energy][3] = 0.0;	//2->3
+			thetas[energy].resize( fg->getNumTransitions() );
+			thetas[energy][0] = 1.386294361119891;	//0->1
+			thetas[energy][1] = 2.456735772821304;	//0->2
+			thetas[energy][2] = 5.0;	//1->2
+			thetas[energy][3] = 0.0;	//2->3
 		}
 		computeTransitionProbabilities();
 
@@ -170,31 +167,29 @@ public:
 		spectra[1].push_back( Peak(177.106284, 33.000500) );
 		spectra[2].push_back( Peak(120.081802, 100.00000) );
 		for( int i = 0; i <=2; i++ ) 
-			MolData::normalizeAndSortSpectrum(spectra[i]);
+			spectra[i].normalizeAndSort();
 	}
 };
 
 class IPFPTestMolInterpolateNoDirect : public MolData {
 public:
-	IPFPTestMolInterpolateNoDirect() : MolData("IPFP Test Mol Interpolation with No Direct Case", ""){
+	IPFPTestMolInterpolateNoDirect(config_t *cfg) : MolData("IPFP Test Mol Interpolation with No Direct Case", "", cfg){
 	
-		setIonizationMode(false);
-
 		//Create a molecule based on what was previously in test_bn_transition_ipfp_interp.txt
-		(*fg) = new FragmentGraph();
-		romol_ptr_t basic_nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("O=C(O)CNC(=O)C(NC(=O)CN)Cc1ccccc1")) ), basic_nl,-1, -1, false), -1 ); //id = 0
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1")) ), basic_nl,-1, -1, false), 0 ); // id = 1, 0 -> 1
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N=CC(=O)[NH2+]CCc1ccccc1")) ), basic_nl, -1, -1, false),1 ); //id = 2, 1 -> 2
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH2+]=CCc1ccccc1")) ), basic_nl, -1, -1, false),2 ); // id = 3, 2 -> 3	
+		fg = new FragmentGraph();  FeatureHelper fh;
+		romol_ptr_t basic_nl = createMolPtr("C");
+		fg->addToGraph( FragmentTreeNode( createMolPtr("O=C(O)C[NH2+]C(=O)C(NC(=O)CN)Cc1ccccc1"),basic_nl,-1, -1, &fh, ipfp_null_eloc), -1 ); //id = 0
+		fg->addToGraph( FragmentTreeNode( createMolPtr("NCC(=O)[NH2+]C(=C=O)Cc1ccccc1"),basic_nl,-1, -1, &fh, ipfp_null_eloc), 0 ); // id = 1, 0 -> 1
+		fg->addToGraph( FragmentTreeNode( createMolPtr("N=CC(=O)[NH2+]CCc1ccccc1"),basic_nl, -1, -1, &fh, ipfp_null_eloc),1 ); //id = 2, 1 -> 2
+		fg->addToGraph( FragmentTreeNode( createMolPtr("[NH2+]=CCc1ccccc1"),basic_nl, -1, -1, &fh, ipfp_null_eloc ),2 ); // id = 3, 2 -> 3	
 
 		//Set thetas/transition probs to match matlab reference2
-		(*thetas).resize( 3 );
+		thetas.resize( 3 );
 		for( int energy = 0; energy < 3; energy++ ){
-			(*thetas)[energy].resize( (*fg)->getNumTransitions() );
-			(*thetas)[energy][0] = 1.386294361119891;	//0->1
-			(*thetas)[energy][1] = 5.0;	//1->2
-			(*thetas)[energy][2] = 0.0;	//2->3
+			thetas[energy].resize( fg->getNumTransitions() );
+			thetas[energy][0] = 1.386294361119891;	//0->1
+			thetas[energy][1] = 5.0;	//1->2
+			thetas[energy][2] = 0.0;	//2->3
 		}
 		computeTransitionProbabilities();
 
@@ -207,7 +202,7 @@ public:
 		spectra[1].push_back( Peak(177.106284, 33.000500) );
 		spectra[2].push_back( Peak(120.081802, 100.00000) );
 		for( int i = 0; i <=2; i++ ) 
-			MolData::normalizeAndSortSpectrum(spectra[i]);
+			spectra[i].normalizeAndSort();
 	}
 };
 
@@ -232,12 +227,11 @@ void IPFPTestComputeBeliefsConverge::runTest(){
 	cfg.spectrum_depths.assign(tmp_array, tmp_array+3);
 	double tmp_array2[3] = {0.33,0.33,0.34};
 	cfg.spectrum_weights.assign(tmp_array2, tmp_array2+3);
-	cfg.interpolate_spectra = 0;
 	initDerivedConfig(cfg);
 	double tol = cfg.ipfp_converge_thresh;
 
 	//Load some molecule data with transition probabilities set as in matlab reference2
-	IPFPTestMolConverge moldata;
+	IPFPTestMolConverge moldata(&cfg);
 
 	//Run code
 	for( int algorithm_to_use = 0; algorithm_to_use <= 2; algorithm_to_use++ ){
@@ -347,11 +341,10 @@ void IPFPTestComputeBeliefsNonConverge::runTest(){
 	cfg.spectrum_depths.assign(tmp_array, tmp_array+3);
 	double tmp_array2[3] = {1.0,1.0,1.0}; 
 	cfg.spectrum_weights.assign(tmp_array2, tmp_array2+3);
-	cfg.interpolate_spectra = 0;
 	initDerivedConfig(cfg);
 
 	//Load some test molecule data
-	IPFPTestMolNonConverge moldata;
+	IPFPTestMolNonConverge moldata(&cfg);
 
 	//Run code for IPFP
 	cfg.ipfp_algorithm = IPFP_ALGORITHM;
@@ -406,11 +399,10 @@ void IPFPTestComputeBeliefsSharedMass::runTest(){
 	cfg.spectrum_depths.assign(tmp_array, tmp_array+3);
 	double tmp_array2[3] = {0.33,0.33,0.34};
 	cfg.spectrum_weights.assign(tmp_array2, tmp_array2+3);
-	cfg.interpolate_spectra = 0;
 	initDerivedConfig(cfg);
 
 	//Load some molecule data
-	IPFPTestMolSharedMass moldata;
+	IPFPTestMolSharedMass moldata(&cfg);
 
 	//Run code
 	cfg.ipfp_algorithm = IPFP_ALGORITHM;
@@ -439,112 +431,6 @@ void IPFPTestComputeBeliefsSharedMass::runTest(){
 
 }
 
-IPFPTestComputeBeliefsInterpolate::IPFPTestComputeBeliefsInterpolate(){
-	description = "Test computing of ipfp beliefs with interpolation";
-}
-
-void IPFPTestComputeBeliefsInterpolate::runTest(){
-
-	bool pass = true;
-	config_t cfg;
-	initDefaultConfig(cfg);
-	cfg.model_depth = 6;
-	int tmp_array[3] = {2,4,6};
-	cfg.spectrum_depths.assign(tmp_array, tmp_array+3);
-	double tmp_array2[3] = {0.33,0.33,0.34};
-	cfg.spectrum_weights.assign(tmp_array2, tmp_array2+3);
-	cfg.interpolate_spectra = 1;
-	cfg.intermediate_weights = 0.05;
-	initDerivedConfig(cfg);
-
-	//Load some molecule data and create the interpolated spectra
-	IPFPTestMolInterpolate moldata;
-	moldata.createInterpolatedSpectra(cfg);
-		
-	//Run code for GEMA
-	cfg.ipfp_algorithm = GEMA_ALGORITHM;
-	IPFP *ipfp = new IPFP( &moldata, &cfg ); 
-    beliefs_t *beliefs = ipfp->calculateBeliefs();
-    
-	if( ipfp->status != COMPLETE_CONVERGE ){
-		std::cout << "GEMA: Incorrect status for interpolated case - expecting COMPLETE_CONVERGE" << std::endl;
-		pass = false;
-	}
-	
-	//If the interpolation is working correctly, 0->1 and 1->2 should both be
-	//very unlikely.
-	double prob_thresh = 0.001;
-	std::vector<double>::iterator it = beliefs->tn[0].begin();
-	for( ; it != beliefs->tn[0].end(); ++it ){
-		if( exp(*it) > prob_thresh ){
-			std::cout << "0->1 probability over limit in interpolated case: " << exp(*it) << std::endl;
-			pass = false;
-		}
-	}
-	it = beliefs->tn[2].begin();
-	for( ; it != beliefs->tn[2].end(); ++it ){
-		if( exp(*it) > prob_thresh ){
-			std::cout << "1->2 probability over limit in interpolated case: " << exp(*it) << std::endl;
-			pass = false;
-		}
-	}
-
-	delete ipfp;
-	passed = pass;
-
-}
-
-IPFPTestComputeBeliefsInterpolateNoDirect::IPFPTestComputeBeliefsInterpolateNoDirect(){
-	description = "Test computing of ipfp beliefs with interpolation for the case of no-direct path";
-}
-
-void IPFPTestComputeBeliefsInterpolateNoDirect::runTest(){
-
-	bool pass = true;
-	config_t cfg;
-	initDefaultConfig(cfg);
-	cfg.model_depth = 6;
-	int tmp_array[3] = {2,4,6};
-	cfg.spectrum_depths.assign(tmp_array, tmp_array+3);
-	double tmp_array2[3] = {1.0,1.0,1.0};
-	cfg.spectrum_weights.assign(tmp_array2, tmp_array2+3);
-	cfg.interpolate_spectra = 1;
-	cfg.intermediate_weights = 0.2;
-	initDerivedConfig(cfg);
-
-	//Load some molecule data
-	IPFPTestMolInterpolateNoDirect moldata;
-	moldata.createInterpolatedSpectra(cfg);
-		
-	//Run code for GEMA
-	cfg.ipfp_algorithm = GEMA_ALGORITHM;
-	IPFP *ipfp = new IPFP( &moldata, &cfg ); 
-    beliefs_t *beliefs = ipfp->calculateBeliefs();
-    
-	if( ipfp->status != COMPLETE_CONVERGE ){
-		std::cout << "GEMA: Incorrect status for interpolated case - expecting COMPLETE_CONVERGE" << std::endl;
-		pass = false;
-	}
-	
-	//Since there's no other path to 2 and 3, 0->1 and 1->2 should both be likely
-	double prob_thresh = 0.01;
-	if( exp(beliefs->tn[0][0]) < prob_thresh || exp(beliefs->tn[0][2]) < prob_thresh ){
-		std::cout << "0->1 probability under limit in non-direct case: " << std::endl;
-		printBeliefs( beliefs->tn[0] );
-		pass = false;
-	}
-
-	if( exp(beliefs->tn[1][1]) < prob_thresh || exp(beliefs->tn[1][3]) < prob_thresh ){
-		std::cout << "1->2 probability under limit in non-direct case: " << std::endl;
-		printBeliefs( beliefs->tn[1] );
-		pass = false;
-	}
-
-	delete ipfp;
-	passed = pass;
-
-}
-
 IPFPTestComputeBeliefsSingleEnergy::IPFPTestComputeBeliefsSingleEnergy(){
 	description = "Test computing of ipfp beliefs for single energy case";
 }
@@ -565,7 +451,7 @@ void IPFPTestComputeBeliefsSingleEnergy::runTest(){
 	initSingleEnergyConfig(se_cfg, cfg, 1);
 
 	//Load some molecule data
-	IPFPTestMolConverge moldata;
+	IPFPTestMolConverge moldata(&cfg);
 		
 	//Run code for IPFP_OSC
 	se_cfg.ipfp_algorithm = IPFP_WITH_MOD_ALGORITHM;

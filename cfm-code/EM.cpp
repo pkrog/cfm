@@ -1,10 +1,12 @@
 /*#########################################################################
 # Mass Spec Prediction and Identification of Metabolites
 #
-# em_ft_train.cpp
+# EM.cpp
 #
-# Description: 	Train the bayesian network parameters using EM applied using
-#				the inference algorithms within the LibDai package.
+# Description: 	Class to apply Expectation Maximization algorithm to derive 
+#				model parameters.
+#					E-step: IPFP or equivalent.
+#					M-step: Gradient Ascent
 #
 # Copyright (c) 2013, Felicity Allen
 # All rights reserved.
@@ -19,39 +21,53 @@
 #include "EM.h"
 #include "IPFP.h"
 #include "Comms.h"
+#include "Config.h"
 
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <map>
+#include <algorithm>
 #include <boost/algorithm/string.hpp>
 #include <boost/lexical_cast.hpp>
 #include <boost/filesystem.hpp>
 
 #include "time.h"
 
-static const int MAX_GRAD_ASCENT_ITERATIONS = 1000000;
-
-EM::EM(config_t *a_cfg, FeatureCalculator *an_fc, std::string &a_status_filename){
+EM::EM(config_t *a_cfg, FeatureCalculator *an_fc, std::string &a_status_filename, std::string initial_params_filename){
 	cfg = a_cfg; 
 	fc = an_fc;
 	status_filename = a_status_filename;
+	initComms();
 	int num_energies_to_include = cfg->map_d_to_energy.back() + 1;
-	param = new Param( fc->getFeatureNames(), num_energies_to_include );
+	if( initial_params_filename == "" ){
+		param = boost::shared_ptr<Param>( new Param( fc->getFeatureNames(), num_energies_to_include ));
+		initial_params_provided = false;
+		comm->printToMasterOnly( "EM: No initial params provided" );
+	}
+	else{
+		param = boost::shared_ptr<Param>( new Param( initial_params_filename ) );
+		while( param->getNumEnergyLevels() < num_energies_to_include )
+			param->appendRepeatedPrevEnergyParams();
+		initial_params_provided = true; 
+		std::string msg = "EM: Initial params provided from " + initial_params_filename;
+		comm->printToMasterOnly( msg.c_str() );
+	}
+	sparse_params = true;
+}
 
+void EM::initComms(){
 	//Initialise the communicator
 	int mpi_rank, mpi_nump;
     MPI_Comm_rank( MPI_COMM_WORLD, &mpi_rank );
 	MPI_Comm_size( MPI_COMM_WORLD, &mpi_nump );
 	if( mpi_rank == MASTER ) comm = new MasterComms();
 	else comm = new WorkerComms();
-
-};
+}
 
 EM::~EM(){
-  delete param;
   delete comm;
-};
+}
 
 void EM::writeStatus( const char *msg ){
 
@@ -65,25 +81,42 @@ void EM::writeParamsToFile( std::string &filename ){
 	param->saveToFile( filename );
 }
 
-double EM::run( std::vector<MolData> &data, int group, bool fullZeroInit ){
+void EM::initParams(){	
+	if( cfg->em_init_type == PARAM_FULL_ZERO_INIT ) param->fullZeroInit();
+	else if(cfg->em_init_type == PARAM_ZERO_INIT ) param->zeroInit();
+	else param->randomInit();
+}
+
+void EM::computeThetas( MolData *moldata ){
+	moldata->computeTransitionThetas( *param );
+}
+
+double EM::run( std::vector<MolData> &data, int group, std::string &out_param_filename ){
 
 	unused_zeroed = 0;
 	int iter = 0;
 
-	// Initialise Parameters (randomly) - and share between threads
-	if( fullZeroInit ) param->fullZeroInit();
-	else param->randomInit();
+	if( !initial_params_provided ) initParams();
+	comm->broadcastInitialParams( param.get() );
+	validation_group = group;
 
-	comm->broadcastInitialParams( param );
+	//Write the initialised params to file (we may get want to reload and use with saved suft state, even before updating)
+	std::string init_out_param_filename = out_param_filename + "_init";
+	if( comm->isMaster() ) writeParamsToFile( init_out_param_filename );
 
 	// EM
 	iter = 0;
 	double Q, prevQ = -10000000.0;
 	while( iter < MAX_EM_ITERATIONS ){
 
+		std::string iter_out_param_filename = out_param_filename + "_" + boost::lexical_cast<std::string>(iter);
+
 		std::string msg = "EM Iteration " + boost::lexical_cast<std::string>(iter);
 		if( comm->isMaster() ) writeStatus( msg.c_str() );
 		comm->printToMasterOnly(msg.c_str());
+
+		time_t before, after;
+		std::vector<MolData>::iterator itdata;
 
 		//Reset sufficient counts
 		suft_counts_t suft;
@@ -91,71 +124,117 @@ double EM::run( std::vector<MolData> &data, int group, bool fullZeroInit ){
 
 		int num_converged = 0, num_nonconverged =0;
 		int tot_numc = 0, total_numnonc = 0;
-
-		time_t before, after;
 		before = time( NULL );
 
 		//Do the inference part (E-step)
-		std::vector<MolData>::iterator itdata = data.begin();
+		itdata = data.begin();
 		for( int molidx = 0; itdata != data.end(); ++itdata, molidx++ ){
 		
-			if( itdata->getGroup() == group ) continue;
+			if( !itdata->hasComputedGraph() ) continue;	//If we couldn't compute it's graph for some reason..
+			if( itdata->hasEmptySpectrum() ) continue; //Ignore any molecule with poor (no peaks matched a fragment) or missing spectra.
+
+			if( itdata->getGroup() == validation_group ) continue;
+
 			MolData *moldata = &(*itdata);
-			
+
 			//Compute the transition probabilities
-			moldata->computeTransitionThetas( *param );
-		    moldata->computeTransitionProbabilities();
+			computeThetas(moldata);
+			moldata->computeTransitionProbabilities();
+			
+			//Apply the peak evidencee, compute the beliefs and record the sufficient statistics
+			if( cfg->use_single_energy_cfm ){
+				beliefs_t beliefs;
+				Inference infer( moldata, cfg );
+				infer.calculateBeliefs( beliefs );
+				recordSufficientStatistics( suft, molidx, moldata, &beliefs);
+			}
+			else{
+				IPFP ipfp( moldata, cfg); 
+				beliefs_t *beliefs = ipfp.calculateBeliefs();
+				int status = ipfp.status;
+				if( status == NON_CONVERGE || status == OSC_CONVERGE ) num_nonconverged++;
+				else if( status == COMPLETE_CONVERGE || status == CONVERGE_AFTER_MOD ) num_converged++;
+				recordSufficientStatistics( suft, molidx, moldata, beliefs);
+			}
 
-			//Apply the peak evidence and compute the beliefs
-			IPFP ipfp( moldata, cfg); 
-			beliefs_t *beliefs = ipfp.calculateBeliefs();
-			int status = ipfp.status;
-			if( status == NON_CONVERGE || status == OSC_CONVERGE ) num_nonconverged++;
-			else if( status == COMPLETE_CONVERGE || status == CONVERGE_AFTER_MOD ) num_converged++;
-
-			//Record the sufficient statistics
-			recordSufficientStatistics( suft, molidx, moldata, beliefs);
 		}
+
+		MPI_Barrier(MPI_COMM_WORLD);   	//All threads wait
 		after = time( NULL );
-		std::string time_msg = "Completed IPFP processing: Time Elapsed = " + boost::lexical_cast<std::string>(after - before) + " seconds";
-		comm->printWithWorkerId(time_msg.c_str());
-		writeStatus(time_msg.c_str());
+		if( !cfg->use_single_energy_cfm ){
+			total_numnonc = comm->collectSumInMaster( num_nonconverged );
+			tot_numc = comm->collectSumInMaster( num_converged );
+			std::string cvg_msg = "Num Converged: " + boost::lexical_cast<std::string>(tot_numc);
+			std::string noncvg_msg = "Num Non-Converged: " + boost::lexical_cast<std::string>(total_numnonc);
+			if( comm->isMaster() ){ writeStatus( cvg_msg.c_str() ); writeStatus( noncvg_msg.c_str() ); }
+			comm->printToMasterOnly(cvg_msg.c_str()); comm->printToMasterOnly(noncvg_msg.c_str());
+		}
+		std::string estep_time_msg = "Completed E-step processing: Time Elapsed = " + boost::lexical_cast<std::string>(after - before) + " seconds";
+		if( comm->isMaster() ) writeStatus(estep_time_msg.c_str());
+		comm->printToMasterOnly(estep_time_msg.c_str());
+
+
 		MPI_Barrier(MPI_COMM_WORLD);   	//All threads wait for master
-
-		total_numnonc = comm->collectSumInMaster( num_nonconverged );
-		tot_numc = comm->collectSumInMaster( num_converged );
-		std::string cvg_msg = "Num Converged: " + boost::lexical_cast<std::string>(tot_numc);
-		std::string noncvg_msg = "Num Non-Converged: " + boost::lexical_cast<std::string>(total_numnonc);
-		if( comm->isMaster() ) writeStatus( cvg_msg.c_str() );		
-		if( comm->isMaster() ) writeStatus( noncvg_msg.c_str() );	
-		comm->printToMasterOnly(cvg_msg.c_str());
-		comm->printToMasterOnly(noncvg_msg.c_str());
-
-		MPI_Barrier(MPI_COMM_WORLD);   	//All threads wait for master
-
 		//Find a new set of parameters to maximize the expected log likelihood (M-step)
-		Q = updateParameters(data, suft);
+		before = time( NULL );
+		if( cfg->use_lbfgs_for_ga ) 
+			Q = updateParametersLBFGS(data, suft);
+		else 
+			Q = updateParametersSimpleGradientDescent(data, suft);
+		after = time( NULL );
+		std::string param_update_time_msg = "Completed M-step param update: Time Elapsed = " + boost::lexical_cast<std::string>(after - before) + " seconds";
+		if( comm->isMaster() ) writeStatus(param_update_time_msg.c_str());
+		comm->printToMasterOnly(param_update_time_msg.c_str());
 
-		//Check for convergence
-		double Qdif = fabs( prevQ - Q );
-		std::string qdif_str;
-		qdif_str += boost::lexical_cast<std::string>(Qdif);
-		qdif_str += " ";
-		qdif_str += boost::lexical_cast<std::string>(prevQ);
-		qdif_str += " ";
-		qdif_str += boost::lexical_cast<std::string>(Q);
-		writeStatus(qdif_str.c_str());
+		//Write the params
+		if( comm->isMaster() ){ 
+			writeParamsToFile( iter_out_param_filename );
+			writeParamsToFile( out_param_filename );
+		}
+		MPI_Barrier(MPI_COMM_WORLD);   	//All threads wait for master
+		after = time( NULL );
+		std::string debug_time_msg = "Starting Q compute: Time Elapsed = " + boost::lexical_cast<std::string>(after - before) + " seconds";
+		if( comm->isMaster() ) writeStatus(debug_time_msg.c_str());
 
-		if( Q < prevQ - cfg->em_converge_thresh ){ 
-			std::string msg = "Warning: Expected likeihood went down!! :(";
-			msg += boost::lexical_cast<std::string>(prevQ);
-			msg += " ";
-			msg += boost::lexical_cast<std::string>(Q);
-			writeStatus(msg.c_str());
-			std::cout << msg << std::endl;
+		//Compute the final Q (with all molecules, in case only some were used in the mini-batch)
+		if( cfg->ga_minibatch_nth_size > 1 ) Q = 0.0;
+		double valQ = 0.0; int molidx = 0, numvalmols = 0, numnonvalmols = 0;
+		for( itdata = data.begin(); itdata != data.end(); ++itdata, molidx++ ){
+			if( itdata->getGroup() == validation_group ){ 
+				//valQ += computeQ( molidx, *itdata, suft );
+				numvalmols++;
+			}
+			else if(cfg->ga_minibatch_nth_size > 1 ){
+				Q += computeQ( molidx, *itdata, suft );
+				numnonvalmols++;
+			}else	
+				numnonvalmols++;
+		}
+
+		MPI_Barrier(MPI_COMM_WORLD);   	//All threads wait for master
+		after = time( NULL );
+		std::string debug_time_msg2 = "Finished Q compute: Time Elapsed = " + boost::lexical_cast<std::string>(after - before) + " seconds";
+		if( comm->isMaster() ) writeStatus(debug_time_msg2.c_str());
+		
+		valQ = comm->collectQInMaster(valQ);
+		if( cfg->ga_minibatch_nth_size > 1 ){
+			Q = comm->collectQInMaster(Q);
+			Q = comm->broadcastQ(Q);
+		}
+		numvalmols = comm->collectSumInMaster(numvalmols);
+		numnonvalmols = comm->collectSumInMaster(numnonvalmols);
+
+		//Check for convergence	
+		double Qratio = fabs((Q-prevQ)/Q);
+		if( comm->isMaster() ){
+			std::string qdif_str = boost::lexical_cast<std::string>(Qratio) + " " + boost::lexical_cast<std::string>(prevQ) + " ";
+			qdif_str += "Q=" + boost::lexical_cast<std::string>(Q) + " ValQ=" + boost::lexical_cast<std::string>(valQ) + " ";
+			qdif_str += "Qn=" + boost::lexical_cast<std::string>(Q/numnonvalmols) + " ValQn=" + boost::lexical_cast<std::string>(valQ/numvalmols) + " ";
+			writeStatus(qdif_str.c_str());
+			comm->printToMasterOnly(qdif_str.c_str());
 		}
 		prevQ = Q;
-		if( Qdif < cfg->em_converge_thresh ){ 
+		if( Qratio < cfg->em_converge_thresh ){ 
 			comm->printToMasterOnly(("EM Converged after " + boost::lexical_cast<std::string>(iter) + " iterations").c_str());
 			break;
 		}
@@ -230,136 +309,246 @@ void EM::recordSufficientStatistics( suft_counts_t &suft, int molidx, MolData *m
 	}
 }
 
-double EM::updateParameters( std::vector<MolData> &data, suft_counts_t &suft ){
 
-	unsigned int l;
+static lbfgsfloatval_t lbfgs_evaluate( void *instance, const lbfgsfloatval_t *x, lbfgsfloatval_t *g, const int n, const lbfgsfloatval_t step)
+{
+	lbfgsfloatval_t fx = ((EM *)instance)->evaluateLBFGS(x, g, n, step);
+    return fx;
+}
 
-	//Use Gradient Ascent, starting from the current parameters, to find the new parameters
-	double prevQ=100000.0;
-	int iter = 0, converged = 0;
+static int lbfgs_progress( void *instance, const lbfgsfloatval_t *x, const lbfgsfloatval_t *g, const lbfgsfloatval_t fx, const lbfgsfloatval_t xnorm, const lbfgsfloatval_t gnorm, const lbfgsfloatval_t step, int n, int k, int ls)
+{
+	((EM *)instance)->progressLBFGS(x, g, fx, xnorm, gnorm, step, n, k,ls);
+    return 0;
+}
 
-	//Initialise gradients
-	std::vector<double> grads(param->getNumWeights());
-	for( l = 0; l < grads.size(); l++ ) grads[l] = 0.0; 
 
-	//Initial Q and gradient calculation
+double EM::updateParametersLBFGS( std::vector<MolData> &data, suft_counts_t &suft ){
+
+	int ret = 0;
 	double Q = 0.0;
+	lbfgs_parameter_t lparam;
+    lbfgs_parameter_init(&lparam);
+	lparam.delta = cfg->ga_converge_thresh;
+	lparam.past = 1;
+	lparam.max_iterations = cfg->ga_max_iterations;
+
+	//Initial Q and gradient calculation (to determine used indexes - if we already have them don't bother)
+	if( comm->used_idxs.size() == 0 ){
+		std::vector<double> grads(param->getNumWeights(), 0.0);
+		std::vector<MolData>::iterator itdata = data.begin();
+		for( int molidx = 0; itdata != data.end(); ++itdata, molidx++ ){
+			if( itdata->getGroup() != validation_group )
+				Q += computeAndAccumulateGradient(&grads[0], molidx, *itdata, suft, true, comm->used_idxs);
+		}
+
+		//Collect the used_idxs from all the processors into the MASTER
+		comm->setMasterUsedIdxs();
+
+		//Copy the used parameters into the LBFGS array 
+		if( comm->isMaster() ) zeroUnusedParams();
+	}
+
+	int N = 0;
+	if( comm->isMaster() ) N = ((MasterComms *)comm)->master_used_idxs.size();
+	N = comm->broadcastNumUsed( N );
+	if( N > 0.1*param->getNumWeights() ) sparse_params = false;
+	lbfgsfloatval_t *x = convertCurrentParamsToLBFGS(N);
+	if( !sparse_params ) N = param->getNumWeights();
+
+	//Select molecules to include in gradient mini-batch (will select a new set at each LBFGS iteration, but for every evaluation).
+	tmp_minibatch_flags.resize(data.size());
 	std::vector<MolData>::iterator itdata = data.begin();
 	for( int molidx = 0; itdata != data.end(); ++itdata, molidx++ )
-		Q += computeAndAccumulateGradient(grads, molidx, *itdata, param, suft, comm->used_idxs);
+		tmp_minibatch_flags[molidx] = ( itdata->getGroup() != validation_group ); //Don't include validation molecules
+	if( cfg->ga_minibatch_nth_size > 1 ) selectMiniBatch(tmp_minibatch_flags);
 
-	//Collect the used_idxs from all the processors into the MASTER
-	comm->setMasterUsedIdxs();
+	//Run LBFGS
+	tmp_moldata_ptr_lbfgs = &data;
+	tmp_suft_ptr_lbfgs = &suft;
+	lbfgsfloatval_t fx;
+	ret = lbfgs(N, x, &fx, lbfgs_evaluate, lbfgs_progress, this, &lparam);
 
-	if( !unused_zeroed && comm->isMaster() ){ 
-		zeroUnusedParams();
-		unused_zeroed = 1;
-	}
-
-	//Add the regularizer
-	if( comm->isMaster() ) Q += addRegularizers( grads, param );
-
-	//Accumulate the Q and gradient terms from all the processors in the MASTER
-	Q = comm->collectQInMaster( Q );
-	comm->printToMasterOnly(("Initial Q=" + boost::lexical_cast<std::string>(Q)).c_str());
-	comm->collectGradsInMaster( grads );
-
-	//Main Loop
-	double tmp_step = cfg->starting_step_size;
-	std::vector<double> tmp_grads(grads.size());
-	for( l = 0; l < grads.size(); l++ ) tmp_grads[l] = 0.0;
-	while( converged < cfg->converge_count_thresh && iter < MAX_GRAD_ASCENT_ITERATIONS ){
-
-		//Backtracking Line Search
-		Param tmp_params(*param);
-		double tmpQsum = 0.0, grad_sq = 0.0;
-		int line_search_converged = 0;
-		if( comm->isMaster() ) grad_sq = computeGradientSquaredTerm( grads );
-		
-		int search_count = 0;
-		double tmpQ, prev_tmpQ = -10000000000000000.0;
-		while( !line_search_converged && search_count < cfg->max_search_count ){
-
-			//Reset the Tmp Gradients
-			tmpQ = 0.0;
-			resetTmpGradients( tmp_grads );
-		
-			if( comm->isMaster() ) stepAndSetTemporaryParams( tmp_params, grads, tmp_step );
-			comm->broadcastParams( &tmp_params );
-
-			//Iterate training data molecules (always batch processing)
-			itdata = data.begin();
-			for( int molidx = 0; itdata != data.end(); ++itdata, molidx++ ){
-				tmpQ += computeAndAccumulateGradient(tmp_grads, molidx, *itdata, &tmp_params, suft, comm->used_idxs);
-			}
-			if( comm->isMaster() )
-				tmpQ += addRegularizers( tmp_grads, &tmp_params );
-			
-			//Accumulate the Q terms from all the processors in the MASTER
-			tmpQ = comm->collectQInMaster( tmpQ );
-
-			if( comm->isMaster() )
-				line_search_converged = updateLineSearchConverged(Q, tmpQ, prev_tmpQ, tmp_step, grad_sq );
-			line_search_converged = comm->broadcastConverged( line_search_converged );
-			
-			tmp_step *= cfg->line_search_beta;
-			search_count++;
-			prev_tmpQ = tmpQ;
-		}
-
-		//Update final Q and grads
-		Q = tmpQ;
-		comm->collectGradsInMaster( tmp_grads );		
-		if( comm->isMaster() ){ 
-			copyGrads( tmp_grads, grads );
-			copyTmpToParamWeights( tmp_params );
-		}
-
-		//Check for convergence
-		if( comm->isMaster() ){
-			if( fabs(prevQ - Q) < cfg->ga_converge_thresh ) converged++;
-			else converged = 0;
-			std::string msg ="Q = " + boost::lexical_cast<std::string>(Q);
-			msg += (" step=" + boost::lexical_cast<std::string>(tmp_step/cfg->line_search_beta));
-			msg += (" grad_sq=" + boost::lexical_cast<std::string>(grad_sq));
-			std::cout << msg << std::endl;
-			writeStatus( msg.c_str());
-			prevQ = Q;
-		}
-
-		//Move the step back one higher for the next loop (saves spending so long searching
-		//for each step if the starting step is too high)
-		tmp_step /= (cfg->line_search_beta*cfg->line_search_beta);
-
-		//Master broadcasts converged flag to all
-		converged = comm->broadcastConverged( converged );
-		iter++;
-	}
-
-	//Master computes and broadcasts Qdif to all
-	if( comm->isMaster() ){ 
-		if( iter < MAX_GRAD_ASCENT_ITERATIONS )
-			std::cout << "Gradient Descent converged after " << iter << " iterations." << std::endl;
-		else
-			std::cout << "Gradient Descent did not converge!" << std::endl;
-	}
-
-	//Master broadcasts final Q and param weights to all
+	//Master converts and broadcasts final param weights and Q to all
+	copyLBFGSToParams(x);
+	if( sparse_params ) lbfgs_free(x);
+	Q = -fx;
+	comm->broadcastParams( param.get() );
 	Q = comm->broadcastQ( Q );
-	comm->broadcastParams( param );
-
+	
 	return( Q );
+
 }
 
-void EM::stepAndSetTemporaryParams( Param &tmp_params, std::vector<double> &grads_sum, double tmp_step){
+lbfgsfloatval_t *EM::convertCurrentParamsToLBFGS(int N){
+    
+	lbfgsfloatval_t *x;
+	if( sparse_params){
+		x = lbfgs_malloc(N);
+		if (x == NULL) {
+			std::cout << "ERROR: Failed to allocate a memory block for variables." << std::cout;
+			throw EMComputationException();
+		}
 
-	//Make a step - update the (used) weights
-	std::set<unsigned int>::iterator it = ((MasterComms *)comm)->master_used_idxs.begin();
-	for( ; it != ((MasterComms *)comm)->master_used_idxs.end(); ++it )
-		tmp_params.setWeightAtIdx( param->getWeightAtIdx(*it) + grads_sum[*it]*tmp_step, *it );	
+		//Only fill the actual parameters in the master (the others we can update at the start of
+		//each evaluate call).
+		if( comm->isMaster() ){
+			std::set<unsigned int>::iterator it = ((MasterComms *)comm)->master_used_idxs.begin();
+			for( unsigned int i = 0; it != ((MasterComms *)comm)->master_used_idxs.end(); ++it )
+				x[i++] = param->getWeightAtIdx(*it);	
+		}
+	}
+	else x = &((*param->getWeightsPtr())[0]);	//If not sparse, just use the existing param array
+	return x;
 }
 
-double EM::computeAndAccumulateGradient(std::vector<double> &grads, int molidx, MolData &moldata, Param *tmp_params, suft_counts_t &suft, std::set<unsigned int> &used_idxs){
+void EM::copyGradsToLBFGS(lbfgsfloatval_t *g, std::vector<double> &grads, int n){
+    
+	if( comm->isMaster() ){
+		if( sparse_params ){
+			std::set<unsigned int>::iterator it = ((MasterComms *)comm)->master_used_idxs.begin();
+			for( unsigned int i = 0; it != ((MasterComms *)comm)->master_used_idxs.end(); ++it )
+				g[i++] = -grads[*it];	
+		}
+		else{
+			for( int i = 0; i < n; i++ ) g[i] *= -1;
+		}
+	}
+	comm->broadcastGorX( g, n );
+}
+
+void EM::copyLBFGSToParams( const lbfgsfloatval_t *x ){
+	if( sparse_params && comm->isMaster() ){
+		std::set<unsigned int>::iterator it = ((MasterComms *)comm)->master_used_idxs.begin();
+		for( unsigned int i = 0; it != ((MasterComms *)comm)->master_used_idxs.end(); ++it )
+			param->setWeightAtIdx(x[i++], *it);	
+	}
+}
+
+lbfgsfloatval_t EM::evaluateLBFGS( const lbfgsfloatval_t *x, lbfgsfloatval_t *g, const int n, const lbfgsfloatval_t step){
+	
+	//Retrieve params from LBFGS and sync between processors
+	copyLBFGSToParams(x);
+	comm->broadcastParams( param.get() );
+
+	//Set the location for the computed gradients (new array if sparse, else the provided g) and initialise
+	double *grad_ptr;
+	std::vector<double> grads;
+	if( sparse_params ){ 
+		grads.resize(param->getNumWeights(), 0.0);
+		grad_ptr = &grads[0];
+	}
+	else{ 
+		grad_ptr = g;
+		std::set<unsigned int>::iterator sit = comm->used_idxs.begin();
+		for( ; sit != comm->used_idxs.end(); ++sit ) *(grad_ptr + *sit) = 0.0;
+	}
+
+	//Compute Q and the gradient
+	double Q = 0.0;
+	std::vector<MolData>::iterator itdata = tmp_moldata_ptr_lbfgs->begin();
+	for( int molidx = 0; itdata != tmp_moldata_ptr_lbfgs->end(); ++itdata, molidx++ ){
+		if( tmp_minibatch_flags[molidx] )
+			Q += computeAndAccumulateGradient(grad_ptr, molidx, *itdata, *tmp_suft_ptr_lbfgs, false, comm->used_idxs);
+	}
+
+	if( comm->isMaster() ) Q += addRegularizers( grad_ptr );
+	comm->collectGradsInMaster( grad_ptr );
+	Q = comm->collectQInMaster(Q);
+	Q = comm->broadcastQ(Q);
+
+	//Move the computed gradients into the lbfgs structure (note: only used idxs are included)
+	copyGradsToLBFGS(g, grads, n);
+	return -Q;
+}
+
+void EM::progressLBFGS( const lbfgsfloatval_t *x, const lbfgsfloatval_t *g, const lbfgsfloatval_t fx, const lbfgsfloatval_t xnorm, const lbfgsfloatval_t gnorm, const lbfgsfloatval_t step, int n, int k, int ls){
+
+	if( comm->isMaster() ){ 
+		writeStatus(("LBFGS Iteration " + boost::lexical_cast<std::string>(k) + ": fx = " + boost::lexical_cast<std::string>(fx)).c_str());
+		std::cout << "LBFGS Iteration " << k << ": fx = " << fx << std::endl;
+	}
+
+	//Select molecules to include in next gradient mini-batch (will select a new set at each LBFGS iteration, but not for every evaluation).
+	std::vector<MolData>::iterator itdata = tmp_moldata_ptr_lbfgs->begin();
+	for( int molidx = 0; itdata != tmp_moldata_ptr_lbfgs->end(); ++itdata, molidx++ )
+		tmp_minibatch_flags[molidx] = ( itdata->getGroup() != validation_group ); //Don't include validation molecules
+	if( cfg->ga_minibatch_nth_size > 1 ) selectMiniBatch(tmp_minibatch_flags);
+
+}
+
+double EM::updateParametersSimpleGradientDescent( std::vector<MolData> &data, suft_counts_t &suft ){
+	
+	double Q = 0.0, prev_Q = 100000.0;
+
+	std::vector<double> grads(param->getNumWeights(), 0.0);
+	std::vector<double> prev_v(param->getNumWeights(), 0.0);
+
+	//Initial Q and gradient calculation (to determine used indexes)
+	if( comm->used_idxs.size() == 0 ){
+		std::vector<MolData>::iterator itdata = data.begin();
+		for( int molidx = 0; itdata != data.end(); ++itdata, molidx++ ){
+			if( itdata->getGroup() != validation_group )
+				Q += computeAndAccumulateGradient(&grads[0], molidx, *itdata, suft, true, comm->used_idxs);
+		}
+		if( comm->isMaster() ) Q += addRegularizers( &grads[0] );	
+		Q = comm->collectQInMaster(Q);
+		Q = comm->broadcastQ(Q);
+		comm->setMasterUsedIdxs();
+		if( comm->isMaster() ) zeroUnusedParams();
+	}
+	int N = 0;
+	if( comm->isMaster() ) N = ((MasterComms *)comm)->master_used_idxs.size();
+	N = comm->broadcastNumUsed( N );
+
+	int iter = 0;
+	double learn_mult = 1.0;
+	while( iter++ < cfg->ga_max_iterations && fabs((Q-prev_Q)/Q) >= cfg->ga_converge_thresh){
+
+		if( Q < prev_Q && iter > 1) learn_mult = learn_mult*0.5;
+		double learn_rate = cfg->starting_step_size*learn_mult/(1+ 0.01*iter);
+
+		if(iter > 1) prev_Q = Q;
+
+		//Select molecules to include in gradient mini-batch.
+		std::vector<int> minibatch_flags(data.size());
+		std::vector<MolData>::iterator itdata = data.begin();
+		for( int molidx = 0; itdata != data.end(); ++itdata, molidx++ )
+			minibatch_flags[molidx] = ( itdata->getGroup() != validation_group ); //Don't include validation molecules
+		if( cfg->ga_minibatch_nth_size > 1 ) selectMiniBatch(minibatch_flags);
+
+		//Compute Q and the gradient
+		std::vector<double>::iterator git =  grads.begin();
+		for( ; git != grads.end(); ++git ) *git = 0.0;
+		Q = 0.0; itdata = data.begin();
+		for( int molidx = 0; itdata != data.end(); ++itdata, molidx++ ){
+			if( minibatch_flags[molidx] ) 
+				Q += computeAndAccumulateGradient(&grads[0], molidx, *itdata, suft, false, comm->used_idxs);
+		}
+		if( comm->isMaster() ) Q += addRegularizers( &grads[0] );
+		comm->collectGradsInMaster( &grads[0] );
+		Q = comm->collectQInMaster(Q);
+		Q = comm->broadcastQ(Q);
+
+		if( comm->isMaster() ) std::cout << iter << ": " << Q << " " << prev_Q << " " << learn_rate << std::endl;
+
+		//Step the parameters
+		if( comm->isMaster() )
+			param->adjustWeightsByGrads( grads, ((MasterComms *)comm)->master_used_idxs, learn_rate, cfg->ga_momentum, prev_v );
+		comm->broadcastParams( param.get() );
+
+	}
+
+	if( comm->isMaster() ){
+		if( iter == cfg->ga_max_iterations )
+			std::cout << "Gradient ascent did not converge" << std::endl;
+		else
+			std::cout << "Gradient ascent converged after " << iter << " iterations" << std::endl;
+	}
+	return Q;
+}
+
+double EM::computeAndAccumulateGradient(double *grads, int molidx, MolData &moldata, suft_counts_t &suft, bool record_used_idxs, std::set<unsigned int> &used_idxs){
 
 	double Q = 0.0;
 	const FragmentGraph *fg = moldata.getFragmentGraph();
@@ -368,13 +557,28 @@ double EM::computeAndAccumulateGradient(std::vector<double> &grads, int molidx, 
 	
 	int offset = num_transitions;
 
+	if( !moldata.hasComputedGraph() ) return Q;
+
 	//Compute the latest transition thetas
-	moldata.computeTransitionThetas( *tmp_params );
+	moldata.computeTransitionThetas( *param );
 	suft_t *suft_values = &(suft.values[molidx]);
 	
-	for( unsigned int energy = 0; energy < tmp_params->getNumEnergyLevels(); energy++ ){
+	//Collect energies to compute
+	std::vector<unsigned int> energies;
+	unsigned int energy;
+	int prev_energy = -1;
+	for( unsigned int d = 0; d < cfg->model_depth; d++ ){
+		energy = cfg->map_d_to_energy[d];
+		if( energy != prev_energy ) energies.push_back( energy );
+		prev_energy = energy;
+	}
 
-		unsigned int grad_offset = energy * tmp_params->getNumWeightsPerEnergyLevel();
+	//Compute the gradients
+	std::vector<unsigned int>::iterator eit = energies.begin();
+	for( ; eit != energies.end(); ++eit ){
+		energy = *eit;
+
+		unsigned int grad_offset = energy * param->getNumWeightsPerEnergyLevel();
 		unsigned int suft_offset = energy * (num_transitions + num_fragments);
 
 		//Iterate over from_id (i)
@@ -409,8 +613,8 @@ double EM::computeAndAccumulateGradient(std::vector<double> &grads, int molidx, 
 				const FeatureVector *fv = moldata.getFeatureVectorForIdx(*itt);
 				std::vector<feature_t>::const_iterator fvit = fv->getFeatureBegin();				
 				for( ; fvit != fv->getFeatureEnd(); ++fvit ){
-					grads[*fvit + grad_offset] += nu;
-					used_idxs.insert(*fvit + grad_offset);
+					*( grads + *fvit + grad_offset ) += nu;
+					if( record_used_idxs) used_idxs.insert(*fvit + grad_offset);
 				}
 				Q += nu*(moldata.getThetaForIdx(energy, *itt) - log(denom));
 			}
@@ -420,8 +624,8 @@ double EM::computeAndAccumulateGradient(std::vector<double> &grads, int molidx, 
 			std::map<unsigned int, double>::iterator sit = sum_terms.begin();
 			double nu = (*suft_values)[offset + from_idx + suft_offset];	//persistence (i=j)
 			for( ; sit != sum_terms.end(); ++sit ){ 
-				grads[sit->first + grad_offset] -= (nu_sum + nu)*sit->second;
-				used_idxs.insert(sit->first + grad_offset);
+				*( grads + sit->first + grad_offset) -= (nu_sum + nu)*sit->second;
+				if( record_used_idxs) used_idxs.insert(sit->first + grad_offset);
 			}
 			Q -= nu*log(denom);
 		}
@@ -430,23 +634,82 @@ double EM::computeAndAccumulateGradient(std::vector<double> &grads, int molidx, 
 	return Q;
 }
 
-double EM::addRegularizers( std::vector<double> &grads, Param *tmp_param ){
+double EM::computeQ(int molidx, MolData &moldata, suft_counts_t &suft){
+
+	double Q = 0.0;
+	const FragmentGraph *fg = moldata.getFragmentGraph();
+	unsigned int num_transitions = fg->getNumTransitions();
+	unsigned int num_fragments = fg->getNumFragments();
+	
+	int offset = num_transitions;
+
+	if( !moldata.hasComputedGraph() ) return Q;
+
+	//Compute the latest transition thetas
+	moldata.computeTransitionThetas( *param );
+	suft_t *suft_values = &(suft.values[molidx]);
+	
+	//Collect energies to compute
+	std::vector<unsigned int> energies;
+	unsigned int energy;
+	int prev_energy = -1;
+	for( unsigned int d = 0; d < cfg->model_depth; d++ ){
+		energy = cfg->map_d_to_energy[d];
+		if( energy != prev_energy ) energies.push_back( energy );
+		prev_energy = energy;
+	}
+
+	std::vector<unsigned int>::iterator eit = energies.begin();
+	for( ; eit != energies.end(); ++eit ){
+		energy = *eit;
+
+		unsigned int suft_offset = energy * (num_transitions + num_fragments);
+
+		//Iterate over from_id (i)
+		tmap_t::const_iterator it = fg->getFromIdTMap()->begin();
+		for( int from_idx=0; it != fg->getFromIdTMap()->end(); ++it, from_idx++ ){
+
+			//Calculate the denominator of the sum terms
+			double denom = 1.0;
+			std::vector<int>::const_iterator itt = it->begin();
+			for( ; itt != it->end(); ++itt )
+				denom += exp( moldata.getThetaForIdx(energy, *itt) );
+
+			//Accumulate the transition (i \neq j) terms of the gradient (sum over j)
+			double nu_sum = 0.0;
+			for( itt = it->begin(); itt != it->end(); ++itt ){
+				double nu = (*suft_values)[*itt + suft_offset];
+				Q += nu*(moldata.getThetaForIdx(energy, *itt) - log(denom));
+			}
+
+			//Accumulate the last term of each transition and the 
+			//persistence (i = j) terms of the gradient and Q
+			double nu = (*suft_values)[offset + from_idx + suft_offset];	//persistence (i=j)
+			Q -= nu*log(denom);
+		}
+
+	}
+	return Q;
+}
+
+
+double EM::addRegularizers( double *grads ){
 
 	double Q = 0.0;
 	std::set<unsigned int>::iterator it = ((MasterComms *)comm)->master_used_idxs.begin();
 	for( ; it != ((MasterComms *)comm)->master_used_idxs.end(); ++it ){
 		
-		double weight = tmp_param->getWeightAtIdx(*it);
+		double weight = param->getWeightAtIdx(*it);
 		Q -= 0.5*cfg->lambda*weight*weight;
-		grads[*it] -= cfg->lambda*weight;		
+		*(grads+*it) -= cfg->lambda*weight;		
 	}
 
 	//Remove the Bias terms (don't regularize the bias terms!)
-	unsigned int weights_per_energy = tmp_param->getNumWeightsPerEnergyLevel();
-	for( unsigned int energy = 0; energy < tmp_param->getNumEnergyLevels(); energy++ ){
-		double bias = tmp_param->getWeightAtIdx(energy * weights_per_energy);
+	unsigned int weights_per_energy = param->getNumWeightsPerEnergyLevel();
+	for( unsigned int energy = 0; energy < param->getNumEnergyLevels(); energy++ ){
+		double bias = param->getWeightAtIdx(energy * weights_per_energy);
 		Q += 0.5*cfg->lambda*bias*bias; 
-		grads[energy * weights_per_energy] += cfg->lambda*bias;
+		*(grads + energy * weights_per_energy) += cfg->lambda*bias;
 	}
 	return Q;
 }
@@ -461,49 +724,19 @@ void EM::zeroUnusedParams(){
 	
 }
 
-int EM::updateLineSearchConverged(double Qsum, double tmpQsum, double prev_tmpQsum, double tmp_step, double grad_sq){
-	
-	//Usual convergence rule
-	if( tmpQsum >= Qsum + cfg->line_search_alpha*tmp_step*grad_sq ) return 1;
-	
-	//Rule that seems necessary due numerical imprecision...?
-	if( tmpQsum < prev_tmpQsum ) return 1;
-	
-	return 0;
-}
 
-double EM::computeGradientSquaredTerm( std::vector<double> &grads){
+void EM::selectMiniBatch( std::vector<int> &initialized_minibatch_flags ){
 
-	double grad_sq = 0.0;
-	std::set<unsigned int>::iterator it = ((MasterComms *)comm)->master_used_idxs.begin();
-	for( ; it != ((MasterComms *)comm)->master_used_idxs.end(); ++it ) 
-		grad_sq += (grads[*it]*grads[*it]);
-	return grad_sq;
-}
+	//The flags are initialized to 1's for selectable molecules, so set unwanted molecule flags to 0
+	int num_mols = initialized_minibatch_flags.size();
+	std::vector<int> idxs(num_mols);
+	int count = 0;
+	for( int i = 0; i < num_mols; i++ )
+		if( initialized_minibatch_flags[i] ) idxs[count++] = i;
+	idxs.resize(count);
+	std::random_shuffle( idxs.begin(), idxs.end() );
+	int num_minibatch_mols = (num_mols + cfg->ga_minibatch_nth_size - 1)/cfg->ga_minibatch_nth_size;
+	for( int i = num_minibatch_mols; i < idxs.size(); i++ )
+		initialized_minibatch_flags[idxs[i]] = 0;
 
-void EM::copyTmpToParamWeights( Param &tmp_params ){
-
-	std::set<unsigned int>::iterator it = ((MasterComms *)comm)->master_used_idxs.begin();
-	for( ; it != ((MasterComms *)comm)->master_used_idxs.end(); ++it )
-		param->setWeightAtIdx( tmp_params.getWeightAtIdx(*it), *it );
-}
-
-void EM::copyGrads( std::vector<double> &tmp_grads, std::vector<double> &grads ){
-	
-	std::set<unsigned int>::iterator it = ((MasterComms *)comm)->master_used_idxs.begin();
-	for( ; it != ((MasterComms *)comm)->master_used_idxs.end(); ++it )
-		grads[*it] = tmp_grads[*it];
-}
-
-void EM::resetTmpGradients( std::vector<double> &tmp_grads ){
-	
-	if( comm->isMaster() ){
-		std::set<unsigned int>::iterator it = ((MasterComms *)comm)->master_used_idxs.begin();
-		for( ; it != ((MasterComms *)comm)->master_used_idxs.end(); ++it ) 
-			tmp_grads[*it] = 0.0;
-	}
-	else{
-		std::set<unsigned int>::iterator it = comm->used_idxs.begin();
-		for( ; it != comm->used_idxs.end(); ++it ) tmp_grads[*it] = 0.0;
-	}
 }
