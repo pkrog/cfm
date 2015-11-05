@@ -21,9 +21,22 @@ public:
 	void runTest();
 };
 
+class ComparatorsTestWeightedRecall : public Test {
+public:
+	ComparatorsTestWeightedRecall();
+	void runTest();
+};
+
+
 class ComparatorsTestPrecision : public Test {
 public:
 	ComparatorsTestPrecision();
+	void runTest();
+};
+
+class ComparatorsTestWeightedPrecision : public Test {
+public:
+	ComparatorsTestWeightedPrecision();
 	void runTest();
 };
 

@@ -93,6 +93,8 @@ else()
                                    HINTS ${RDKIT_LIBRARY_DIR})
       find_library(DEPICTOR_LIB NAMES Depictor
                                 HINTS ${RDKIT_LIBRARY_DIR})
+      find_library(CHEMTRANS_LIB NAMES ChemTransforms
+                                HINTS ${RDKIT_LIBRARY_DIR})								
       find_library(GRAPHMOL_LIB NAMES GraphMol
                                 HINTS ${RDKIT_LIBRARY_DIR})
       find_library(RDGEOMETRYLIB_LIB NAMES RDGeometryLib
@@ -103,15 +105,33 @@ else()
                                  HINTS ${RDKIT_LIBRARY_DIR})      
       find_library(GASTEIGER_LIB NAMES PartialCharges
                                  HINTS ${RDKIT_LIBRARY_DIR})  
+      find_library(DATASTRUCT_LIB NAMES DataStructs
+                                 HINTS ${RDKIT_LIBRARY_DIR}) 
+      find_library(SUBGRAPH_LIB NAMES Subgraphs                                 
+                                 HINTS ${RDKIT_LIBRARY_DIR})
+      find_library(FINGERPRINT_LIB NAMES Fingerprints
+                                 HINTS ${RDKIT_LIBRARY_DIR})  
       find_library(INCHI_LIB NAMES Inchi
                                  HINTS ${RDKIT_LIBRARY_DIR})      
       find_library(RDINCHI_LIB NAMES RDInchiLib
-                                 HINTS ${RDKIT_LIBRARY_DIR})                                   
+                                 HINTS ${RDKIT_LIBRARY_DIR}) 
+	  find_library(OPT NAMES Optimizer
+                                 HINTS ${RDKIT_LIBRARY_DIR}) 								 
+	  find_library(FF NAMES ForceField
+                                 HINTS ${RDKIT_LIBRARY_DIR})  
+	  find_library(FFHELP NAMES ForceFieldHelpers
+                                 HINTS ${RDKIT_LIBRARY_DIR}) 
+	  find_library(CATALOG NAMES Catalogs
+                                 HINTS ${RDKIT_LIBRARY_DIR})  
+	  find_library(FRAGCAT NAMES FragCatalog
+                                 HINTS ${RDKIT_LIBRARY_DIR})   
+
                                  
       set (RDKIT_LIBRARIES ${FILEPARSERS_LIB} ${SMILESPARSE_LIB}
-              ${DEPICTOR_LIB} ${GRAPHMOL_LIB} ${RDGEOMETRYLIB_LIB}
+              ${DEPICTOR_LIB} ${CHEMTRANS_LIB} ${GRAPHMOL_LIB} ${RDGEOMETRYLIB_LIB}
               ${RDGENERAL_LIB} ${SUBSTRUCT_LIB} ${GASTEIGER_LIB} 
-              ${INCHI_LIB} ${RDINCHI_LIB})
+              ${DATASTRUCT_LIB} ${SUBGRAPH_LIB} ${FINGERPRINT_LIB} 
+              ${INCHI_LIB} ${RDINCHI_LIB} ${OPT} ${FF} ${FFHELP} ${CATALOG} ${FRAGCAT})
     endif()
     if(RDKIT_LIBRARIES)
             message(STATUS "Found RDKit library files at ${RDKIT_LIBRARIES}")

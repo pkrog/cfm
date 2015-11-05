@@ -55,7 +55,7 @@ public:
 };
 
 
-void parseInputFile(std::vector<MolData> &data, std::string &input_filename );
+void parseInputFile(std::vector<MolData> &data, std::string &input_filename, config_t *cfg );
 
 int main(int argc, char *argv[])
 {
@@ -82,17 +82,35 @@ int main(int argc, char *argv[])
 	}
 	
 	std::string input_smiles_or_inchi = argv[1];
-	if( argc >= 3 ) prob_thresh_for_prune = atof(argv[2]);
+	if( argc >= 3 ){ 
+		try{ prob_thresh_for_prune = boost::lexical_cast<float>(argv[2]); }
+		catch(boost::bad_lexical_cast e){
+			std::cout << "Invalid prob_thresh_for_prune: " << argv[2] << std::endl;
+			exit(1);
+		}
+	}
 	if( argc >= 5 ){
 		param_filename = argv[3];
 		config_filename = argv[4];
 	}
-	if( argc >= 6 ) do_annotate = atoi(argv[5]);
+	if( argc >= 6 ){ 
+		try{ do_annotate = boost::lexical_cast<bool>(argv[5]); }
+		catch(boost::bad_lexical_cast e){
+			std::cout << "Invalid include_annotations (Must be 0 or 1): " << argv[5] << std::endl;
+			exit(1);
+		}
+	}
 	if( argc >= 7){
 		output_filename = argv[6];
 		to_stdout = false;
 	}
-	if( argc == 8 ) apply_postprocessing = atoi(argv[7]);
+	if( argc == 8 ){ 
+		try{ apply_postprocessing = boost::lexical_cast<bool>(argv[7]); }
+		catch(boost::bad_lexical_cast e){
+			std::cout << "Invalid apply_postprocessing (Must be 0 or 1): " << argv[7] << std::endl;
+			exit(1);
+		}
+	}
 
 	//Initialise model configuration
 	config_t cfg;
@@ -107,7 +125,11 @@ int main(int argc, char *argv[])
 		std::cout << "Could not find file: " <<  param_filename << std::endl;
 		throw FileException("Could not find file: " + param_filename);
 	}
-	Param param( param_filename );
+	Param *param; NNParam *nn_param;
+	if( cfg.theta_function == NEURAL_NET_THETA_FUNCTION )
+		nn_param = new NNParam( param_filename );
+	else
+		param = new Param(param_filename);
 
 	//Check for mgf or msp output - and setup in exists
 	int output_mode = NO_OUTPUT_MODE;
@@ -133,7 +155,7 @@ int main(int argc, char *argv[])
 	bool batch_run = false;
 	std::string output_dir_str = "";
 	if( input_smiles_or_inchi.substr( input_smiles_or_inchi.size() - 4 ).compare(".txt") == 0 ){
-		parseInputFile( data, input_smiles_or_inchi );
+		parseInputFile( data, input_smiles_or_inchi, &cfg );
 		batch_run = true;
 		if( !to_stdout && output_mode == NO_OUTPUT_MODE ){
 			if(  output_filename != "." && !boost::filesystem::exists(output_filename) )
@@ -142,18 +164,23 @@ int main(int argc, char *argv[])
 		}
 		to_stdout = false;
 	}
-	else data.push_back( MolData( "NullId", input_smiles_or_inchi.c_str() ) );
+	else data.push_back( MolData( "NullId", input_smiles_or_inchi.c_str(), &cfg ) );
 
 	std::vector<MolData>::iterator it = data.begin();
 	for( ; it != data.end(); ++it ){
 		//Create the MolData structure with the input
-		it->setIonizationMode(cfg.ionization_mode == NEGATIVE_IONIZATION_MODE);	
 		try{
 			//Calculate the pruned FragmentGraph
-			it->computeLikelyFragmentGraphAndSetThetas(&param, &cfg, prob_thresh_for_prune, do_annotate);
+			LikelyFragmentGraphGenerator *fgen;
+			if( cfg.theta_function == NEURAL_NET_THETA_FUNCTION )
+				fgen = new LikelyFragmentGraphGenerator(nn_param, &cfg, prob_thresh_for_prune ); 
+			else
+				fgen = new LikelyFragmentGraphGenerator(param, &cfg, prob_thresh_for_prune ); 
+			it->computeLikelyFragmentGraphAndSetThetas(*fgen, prob_thresh_for_prune, do_annotate);
 
 			//Predict the spectra (and post-process, use existing thetas)
-			it->computePredictedSpectra( param, cfg, apply_postprocessing, true );
+			std::cout << apply_postprocessing << std::endl;
+			it->computePredictedSpectra( *param, apply_postprocessing, true );
 		}
 		catch( RDKit::MolSanitizeException e ){
 			std::cout << "Could not sanitize input: " << it->getSmilesOrInchi() << std::endl;
@@ -165,9 +192,14 @@ int main(int argc, char *argv[])
 			if(!batch_run) throw SpectrumPredictionException("RDKit could not parse input: " + it->getSmilesOrInchi());
 			continue;
 		}
-		catch( FragmentGraphGenerationException ){
+		catch( FragmentGraphGenerationException ge ){
 			std::cout << "Could not compute fragmentation graph for input: " << it->getSmilesOrInchi() << std::endl;
 			if(!batch_run) throw SpectrumPredictionException("Could not compute fragmentation graph for input: " + it->getSmilesOrInchi());
+			continue;
+		}
+		catch( IonizationException ie ){
+			std::cout << "Could not ionize: " << it->getSmilesOrInchi() << std::endl;		
+			if(!batch_run) throw IonizationException();
 			continue;
 		}
 
@@ -201,7 +233,7 @@ int main(int argc, char *argv[])
 }
 
 
-void parseInputFile(std::vector<MolData> &data, std::string &input_filename ){
+void parseInputFile(std::vector<MolData> &data, std::string &input_filename, config_t *cfg ){
 
 	std::string line, smiles_or_inchi, id;
 	std::ifstream ifs ( input_filename.c_str() , std::ifstream::in );
@@ -223,7 +255,7 @@ void parseInputFile(std::vector<MolData> &data, std::string &input_filename ){
 		std::stringstream ss(line);
 		ss >> id >> smiles_or_inchi;
 
-		data.push_back( MolData( id.c_str(), smiles_or_inchi.c_str() ) );
+		data.push_back( MolData( id.c_str(), smiles_or_inchi.c_str(), cfg ) );
 	}
 
 	std::cout << "Read " << data.size() << " molecules from input file." << std::endl;

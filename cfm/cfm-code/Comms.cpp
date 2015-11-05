@@ -130,7 +130,11 @@ void Comms::broadcastInitialParams( Param *param ){
 	MPI_Bcast(&((*weights)[0]), weights->size(), MPI_DOUBLE, MASTER, MPI_COMM_WORLD);
 }
 
-void WorkerComms::collectGradsInMaster( std::vector<double> &grads ){
+void Comms::broadcastGorX( lbfgsfloatval_t *g, int n ){
+	MPI_Bcast(g, n, MPI_DOUBLE, MASTER, MPI_COMM_WORLD);
+}
+
+void WorkerComms::collectGradsInMaster( double *grads ){
 
 	MPI_Barrier(MPI_COMM_WORLD);  	//All threads wait
 	if( num_used == 0 ) return;
@@ -138,13 +142,13 @@ void WorkerComms::collectGradsInMaster( std::vector<double> &grads ){
 	std::vector<double> used_grads( num_used );
 	std::set<unsigned int>::iterator it = used_idxs.begin();
 	for( int i = 0; it != used_idxs.end(); ++it, i++ )
-		used_grads[i] = grads[*it];
+		used_grads[i] = *(grads + *it);
 	MPI_Send( &(used_grads[0]), num_used, MPI_DOUBLE, MASTER, 0, MPI_COMM_WORLD );
 	
 
 }
 
-void MasterComms::collectGradsInMaster( std::vector<double> &grads ){
+void MasterComms::collectGradsInMaster( double *grads ){
 
 	MPI_Status status;
 	MPI_Barrier(MPI_COMM_WORLD);  	//All threads wait
@@ -159,7 +163,7 @@ void MasterComms::collectGradsInMaster( std::vector<double> &grads ){
 
 			std::set<unsigned int>::iterator it = worker_used_idxs[i].begin();
 			for( int j = 0; it != worker_used_idxs[i].end(); ++it, j++ )
-				grads[*it] += used_grads[j];
+				*(grads + *it) += used_grads[j];
 		}
 	}
 
@@ -206,6 +210,14 @@ int Comms::broadcastConverged( int converged ){
 	MPI_Barrier(MPI_COMM_WORLD);  	//All threads wait
 	MPI_Bcast(&converged, 1, MPI_INT, MASTER, MPI_COMM_WORLD);
 	return converged;
+	
+} 
+
+int Comms::broadcastNumUsed( int num_used ){
+	
+	MPI_Barrier(MPI_COMM_WORLD);  	//All threads wait
+	MPI_Bcast(&num_used, 1, MPI_INT, MASTER, MPI_COMM_WORLD);
+	return num_used;
 	
 } 
 

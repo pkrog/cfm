@@ -20,6 +20,17 @@
 
 #include "MolData.h"
 
+#include <iostream>
+#include <sstream>
+#include <fstream>
+
+class ComparatorException: public std::exception{
+
+	virtual const char* what() const throw(){
+		return "Unsorted or unnormalized spectra detected in comparator - cannot proceed.";
+	}
+};
+
 typedef std::pair<Peak, Peak> peak_pair_t;
 
 //Base class to compute a spectrum comparison score
@@ -27,6 +38,8 @@ class Comparator{
 public:
 	Comparator( double a_ppm_tol, double a_abs_tol ) : ppm_tol(a_ppm_tol), abs_tol( a_abs_tol ) {};
 	virtual double computeScore( const Spectrum *measured, const Spectrum *predicted ) const = 0;
+	double getPPMTol() const {return ppm_tol; };
+	double getAbsTol() const {return abs_tol; };
 protected:
 	double ppm_tol;
 	double abs_tol;
@@ -37,9 +50,16 @@ protected:
 class DotProduct : public Comparator {
 public:
 	DotProduct( double a_ppm_tol, double a_abs_tol ) : Comparator( a_ppm_tol, a_abs_tol ) {};
-	double computeScore( const Spectrum *measured, const Spectrum *predicted ) const;
+	double computeScore( const Spectrum *measured, const Spectrum *predicted) const;
 private:
 	double getTotalPeakSum( const Spectrum *spectrum ) const;
+	virtual double getAdjustedIntensity( double intensity, double mass ) const;
+};
+
+class OrigSteinDotProduct : public DotProduct {
+public:
+	OrigSteinDotProduct( double a_ppm_tol, double a_abs_tol ) : DotProduct( a_ppm_tol, a_abs_tol ) {};
+private:
 	double getAdjustedIntensity( double intensity, double mass ) const;
 };
 
@@ -57,6 +77,21 @@ public:
 private:
 };
 
+class Recall : public Comparator {
+public:
+	Recall( double a_ppm_tol, double a_abs_tol ) : Comparator( a_ppm_tol, a_abs_tol ) {};
+	double computeScore( const Spectrum *measured, const Spectrum *predicted ) const;
+private:
+};
+
+
+class WeightedPrecision: public Comparator {
+public:
+	WeightedPrecision( double a_ppm_tol, double a_abs_tol ) : Comparator( a_ppm_tol, a_abs_tol ) {};
+	double computeScore( const Spectrum *measured, const Spectrum *predicted ) const;
+private:
+};
+
 class Jaccard : public Comparator {
 public:
 	Jaccard( double a_ppm_tol, double a_abs_tol ) : Comparator( a_ppm_tol, a_abs_tol ) {};
@@ -64,5 +99,33 @@ public:
 private:
 };
 
+class WeightedJaccard : public Comparator {
+public:
+	WeightedJaccard( double a_ppm_tol, double a_abs_tol ) : Comparator( a_ppm_tol, a_abs_tol ) {};
+	double computeScore( const Spectrum *measured, const Spectrum *predicted ) const;
+private:
+};
+
+class Combined : public Comparator {
+public:
+	Combined( double a_ppm_tol, double a_abs_tol ) : Comparator( a_ppm_tol, a_abs_tol ) {};
+	double computeScore( const Spectrum *measured, const Spectrum *predicted ) const;
+private:
+};
+
+class ScatterOutput : public Comparator {
+public:
+	ScatterOutput( double a_ppm_tol, double a_abs_tol ) : Comparator( a_ppm_tol, a_abs_tol ) {
+		out.open("matching_peak_pairs.log");
+		if( !out.is_open() )
+			std::cout << "Warning: Trouble opening output peak pair file" << std::endl;
+	};
+	double computeScore( const Spectrum *measured, const Spectrum *predicted ) const {return -1.0;};
+	void outputData( const Spectrum *measured, const Spectrum *predicted );
+	~ScatterOutput(){out.close();};
+	std::ofstream out;
+private:
+
+};
 
 #endif // __COMPARATORS_H__

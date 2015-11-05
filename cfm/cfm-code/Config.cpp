@@ -26,6 +26,7 @@
 void initDefaultConfig( config_t &cfg ){
 
 	cfg.lambda = DEFAULT_LAMBDA;
+	cfg.use_lbfgs_for_ga = DEFAULT_USE_LBFGS_FOR_GA;
 	cfg.converge_count_thresh = DEFAULT_CONVERGE_COUNT_THRESH;
 	cfg.em_converge_thresh = DEFAULT_EM_CONVERGE_THRESH;
 	cfg.ga_converge_thresh = DEFAULT_GA_CONVERGE_THRESH;
@@ -33,7 +34,6 @@ void initDefaultConfig( config_t &cfg ){
 	cfg.abs_mass_tol = DEFAULT_ABS_MASS_TOL;
 	cfg.ppm_mass_tol = DEFAULT_PPM_MASS_TOL;
 	cfg.num_em_restarts = DEFAULT_NUM_EM_RESTARTS;
-	cfg.lambda_hold = DEFAULT_LAMBDA_HOLD;
 	cfg.line_search_alpha = DEFAULT_LINE_SEARCH_ALPHA;
 	cfg.line_search_beta = DEFAULT_LINE_SEARCH_BETA;
 	cfg.starting_step_size = 1.0;
@@ -41,7 +41,6 @@ void initDefaultConfig( config_t &cfg ){
 	cfg.spectrum_depths.clear();
 	cfg.spectrum_weights.clear();
 	cfg.dv_spectrum_indexes.clear();
-	cfg.interpolate_spectra = 0;
 	cfg.intermediate_weights = 0.0;
 	cfg.fg_depth = DEFAULT_FRAGGRAPH_DEPTH;
 	cfg.ipfp_algorithm = DEFAULT_IPFP_ALGORITHM;
@@ -49,6 +48,21 @@ void initDefaultConfig( config_t &cfg ){
 	cfg.osc_ipfp_converge_thresh = DEFAULT_IPFP_OSC_CONVERGE_THRESH;
 	cfg.use_single_energy_cfm = 0;
 	cfg.ionization_mode = DEFAULT_IONIZATION_MODE;
+	cfg.update_bias_first = 0;
+	cfg.em_init_type = PARAM_DEFAULT_INIT;
+	cfg.use_lower_energy_params_for_init = 0;
+	cfg.include_isotopes = DEFAULT_INCLUDE_ISOTOPES;
+	cfg.isotope_thresh = DEFAULT_ISOTOPE_THRESH;
+	cfg.allow_frag_detours = DEFAULT_ALLOW_FRAG_DETOURS;
+	cfg.do_prelim_bfs = DEFAULT_DO_PRELIM_BFS;
+	cfg.max_ring_breaks = DEFAULT_MAX_RING_BREAKS;
+	cfg.theta_function = DEFAULT_THETA_FUNCTION;
+	cfg.ga_minibatch_nth_size = DEFAULT_GA_MINIBATCH_NTH_SIZE;
+	cfg.ga_max_iterations = DEFAULT_GA_MAX_ITERATIONS;
+	cfg.ga_momentum = DEFAULT_GA_MOMENTUM;
+	cfg.obs_function = DEFAULT_OBS_FUNCTION;
+	cfg.include_h_losses = DEFAULT_INCLUDE_H_LOSSES;
+	cfg.include_precursor_h_losses_only = DEFAULT_INCLUDE_PRECURSOR_H_LOSSES_ONLY;
 }
 
 
@@ -75,72 +89,148 @@ void initConfig( config_t &cfg, std::string &filename, bool report_all ){
 		else if( name == "converge_count_thresh" ) cfg.converge_count_thresh = (int)value;
 		else if( name == "em_converge_thresh" ) cfg.em_converge_thresh = value;
 		else if( name == "ga_converge_thresh" ) cfg.ga_converge_thresh = value;
+		else if( name == "update_bias_first" ) cfg.update_bias_first = (int)value;
 		else if( name == "model_depth" ) cfg.model_depth = (unsigned int)value;
 		else if( name == "spectrum_depth" ) cfg.spectrum_depths.push_back( (unsigned int)value );
 		else if( name == "spectrum_weight" ) cfg.spectrum_weights.push_back( (double)value );
-		else if( name == "interpolate_spectra" ) cfg.interpolate_spectra = (int)value;
-		else if( name == "intermediate_weights" ) cfg.intermediate_weights = (double)value;
 		else if( name == "abs_mass_tol" ) cfg.abs_mass_tol = (double)value;
 		else if( name == "ppm_mass_tol" ) cfg.ppm_mass_tol = (double)value;
 		else if( name == "num_em_restarts" ) cfg.num_em_restarts = (int)value;
-		else if( name == "lambda_hold" ) cfg.lambda_hold = (double)value;
 		else if( name == "line_search_alpha" ) cfg.line_search_alpha = (double)value;
 		else if( name == "line_search_beta" ) cfg.line_search_beta = (double)value;
 		else if( name == "starting_step_size" ) cfg.starting_step_size = (double)value;
 		else if( name == "max_search_count" ) cfg.max_search_count = (int)value;
 		else if( name == "fg_depth" ) cfg.fg_depth = (int)value;
+		else if( name == "allow_frag_detours" ) cfg.allow_frag_detours = (int)value;
+		else if( name == "do_prelim_bfs" ) cfg.do_prelim_bfs = (int)value;
+		else if( name == "max_ring_breaks" ) cfg.max_ring_breaks = (int)value;
 		else if( name == "ipfp_algorithm" ) cfg.ipfp_algorithm = (int)value;
 		else if( name == "ipfp_converge_thresh" ) cfg.ipfp_converge_thresh = (double)value;
 		else if( name == "osc_ipfp_converge_thresh" ) cfg.osc_ipfp_converge_thresh = (double)value;
 		else if( name == "use_single_energy_cfm" ) cfg.use_single_energy_cfm = (int)value;
+		else if( name == "include_isotopes" ) cfg.include_isotopes = (int)value;
+		else if( name == "isotope_thresh" ) cfg.isotope_thresh = (double)value;
+		else if( name == "use_lbfgs_for_ga" ) cfg.use_lbfgs_for_ga = (int)value;
+		else if( name == "em_init_type" ) cfg.em_init_type = (int)value;
+		else if( name == "use_lower_energy_params_for_init" ) cfg.use_lower_energy_params_for_init = (int)value;
+		else if( name == "theta_function" ) cfg.theta_function = (int)value;
+		else if( name == "theta_nn_hlayer_num_nodes" ) cfg.theta_nn_hlayer_num_nodes.push_back( (int)value );
+		else if( name == "theta_nn_layer_act_func_ids" ) cfg.theta_nn_layer_act_func_ids.push_back( (int)value );
+		else if( name == "ga_minibatch_nth_size") cfg.ga_minibatch_nth_size = (int)value;
+		else if( name == "ga_max_iterations" ) cfg.ga_max_iterations = (int)value;
+		else if( name == "ga_momentum" ) cfg.ga_momentum = (double)value;
+		else if( name == "obs_function" ) cfg.obs_function = (int)value;
+		else if( name == "include_h_losses" ) cfg.include_h_losses = (int)value;
+		else if( name == "include_precursor_h_losses_only" ) cfg.include_precursor_h_losses_only = (int)value;
 		else std::cout << "Warning: Unknown paramater configuration identifier " << name << std::endl;
 	}
 	ifs.close();
 
 	if( cfg.spectrum_depths.size() != cfg.spectrum_weights.size() )
 		std::cout << "Warning: Mismatch between size of spectrum depths and weights" << std::endl;
-	
+
+	if( cfg.theta_function == NEURAL_NET_THETA_FUNCTION ){
+		if( cfg.theta_nn_layer_act_func_ids.size() < cfg.theta_nn_hlayer_num_nodes.size() + 1  ){
+			std::cout << "Warning: Activations function types not specified for all neural net layers, using default activations for unspecified layers." << std::endl;
+			while( cfg.theta_nn_layer_act_func_ids.size() < cfg.theta_nn_hlayer_num_nodes.size() + 1 )
+				cfg.theta_nn_layer_act_func_ids.push_back( DEFAULT_NN_ACTIVATION_FUNCTION );
+		}
+		else if( cfg.theta_nn_layer_act_func_ids.size() != cfg.theta_nn_hlayer_num_nodes.size() + 1 ){
+			std::cout << "Warning: More activations function types than neural net layers, ignoring some activations." << std::endl;
+			cfg.theta_nn_layer_act_func_ids.resize( cfg.theta_nn_hlayer_num_nodes.size() + 1 );
+		}
+		for( int i = 0; i < cfg.theta_nn_hlayer_num_nodes.size(); i++ ){
+			if( cfg.theta_nn_layer_act_func_ids[i] == RELU_NN_ACTIVATION_FUNCTION && 
+				cfg.theta_nn_hlayer_num_nodes[i] % 2 > 0 ){
+				std::cout << "Warning: Invalid to have odd number of nodes for ReLU hidden layer. Adding extra node." << std::endl;
+				cfg.theta_nn_hlayer_num_nodes[i] += 1;
+			}
+		}
+		cfg.theta_nn_hlayer_num_nodes.push_back(1);	//Last layer has one node
+	}
+
 	initDerivedConfig(cfg);
 
 	//Report config parameters
-	if( cfg.use_single_energy_cfm ) std::cout << "Using Single Energy CFM" << std::endl;
-	else std::cout << "Using Combined Energy CFM" << std::endl;
-	if( cfg.ionization_mode == POSITIVE_IONIZATION_MODE ) std::cout << "Positive Ionization Mode" << std::endl;
-	else if( cfg.ionization_mode == NEGATIVE_IONIZATION_MODE ) std::cout << "Negative Ionization Mode" << std::endl;
-	else{ 
-		std::cout << "Warning: Unknown Ionization Mode, reverting to default mode (positive)" << std::endl;
-		cfg.ionization_mode = DEFAULT_IONIZATION_MODE;
-	}
 	if( report_all ){
-		std::cout << "Using Lambda " << cfg.lambda << std::endl;
-		std::cout << "Using Lambda Hold " << cfg.lambda_hold << std::endl;
-		std::cout << "Using Converge Count Threshold " << cfg.converge_count_thresh << std::endl;
+		if( cfg.use_single_energy_cfm ) std::cout << "Using Single Energy CFM" << std::endl;
+		else std::cout << "Using Combined Energy CFM" << std::endl;
+		if( cfg.ionization_mode == POSITIVE_ESI_IONIZATION_MODE ) std::cout << "Positive ESI Ionization Mode" << std::endl;
+		else if( cfg.ionization_mode == NEGATIVE_ESI_IONIZATION_MODE ) std::cout << "Negative ESI Ionization Mode" << std::endl;
+		else if( cfg.ionization_mode == POSITIVE_EI_IONIZATION_MODE ) std::cout << "Positive EI Ionization Mode" << std::endl;
+		else{ 
+			std::cout << "Warning: Unknown Ionization Mode, reverting to default mode (positive)!" << std::endl;
+			cfg.ionization_mode = DEFAULT_IONIZATION_MODE;
+		}
+		if( cfg.include_isotopes ) std::cout << "Including fragment isotopes above intensity " << cfg.isotope_thresh << std::endl;
+		else std::cout << "Not including fragment isotopes" << std::endl;
+		if( cfg.include_h_losses || cfg.include_precursor_h_losses_only ){ 
+			std::cout << "Including Hydrogen losses";
+			if( cfg.include_precursor_h_losses_only ) std::cout << " from precursor only";
+			std::cout << std::endl;
+		}if( cfg.em_init_type == PARAM_RANDOM_INIT ) std::cout << "Using Random Parameter Initialisation" << std::endl;
+		else if( cfg.em_init_type == PARAM_FULL_ZERO_INIT ) std::cout << "Using Full Zero Initialisation" << std::endl;
+		else if( cfg.em_init_type == PARAM_ZERO_INIT ) std::cout << "Using Zero Initialisation (non-zero Bias)" << std::endl;
+		else std::cout << "Warning: Unknown parameter initialization, revering to default mode (full random)!" << std::endl;
+	
 		std::cout << "Using EM Convergence Threshold " << cfg.em_converge_thresh << std::endl;
+		std::cout << "Using Lambda " << cfg.lambda << std::endl;
+		if( cfg.use_lbfgs_for_ga ) std::cout << "Using LBFGS package for gradient ascent" << std::endl;
+		else{
+			std::cout << "Using simple gradient ascent implementation" << std::endl;
+			std::cout << "Using Starting Step Size " << cfg.starting_step_size << " and momentum " << cfg.ga_momentum << std::endl;
+		}
+		std::cout << "Using GA max iterations " << cfg.ga_max_iterations << std::endl;
 		std::cout << "Using GA Convergence Threshold " << cfg.ga_converge_thresh << std::endl;
+		std::cout << "Using GA mini batch taking 1 in " << cfg.ga_minibatch_nth_size << " of processor data" << std::endl;
 		std::cout << "Using Fragmentation Graph Depth " << cfg.fg_depth << std::endl;
+		if( cfg.allow_frag_detours ) std::cout << "Allowing fragmentation detours " << std::endl;
+		else{ 
+			std::cout << "Disallowing fragmentation detours ";
+			if( cfg.do_prelim_bfs ) std::cout << "with preliminary breadth-first search" << std::endl;
+			else std::cout << "without preliminary breadth-first search" << std::endl;
+		}
+		std::cout << "Maximum Ring Breaks " << cfg.max_ring_breaks << std::endl;
 		std::cout << "Using Model Depth " << cfg.model_depth << std::endl;
 		std::cout << "Using Spectrum Depths and Weights: ";
 		for( unsigned int i =0; i < cfg.spectrum_depths.size(); i++ )
 			std::cout << "(" << cfg.spectrum_depths[i] << "," << cfg.spectrum_weights[i] << ") ";
 		std::cout << std::endl;
-		if(cfg.interpolate_spectra) std::cout << "Using interpolated spectra with intermediate weights=" << cfg.intermediate_weights << std::endl;
-		else std::cout << "Not interpolated spectra" << std::endl;
 		std::cout << "Using Absolute mass tolerance " << cfg.abs_mass_tol << std::endl;
-		std::cout << "Using PPM mass tolerance" << cfg.ppm_mass_tol << std::endl;
-		std::cout << "Using Line Search Alpha Beta " << cfg.line_search_alpha << " " << cfg.line_search_beta << std::endl;
-		std::cout << "Using Starting Step Size " << cfg.starting_step_size << std::endl;
-		std::cout << "Using Max Line Search Count " << cfg.max_search_count << std::endl;
-		if( cfg.ipfp_algorithm == 0 ) std::cout << "Using standard IPFP" << std::endl;
-		else if( cfg.ipfp_algorithm == 1 ) std::cout << "Using GEMA" << std::endl;
-		else if( cfg.ipfp_algorithm == 2 ) std::cout << "Using IPFP with Oscillatory Adjustment" << std::endl;
-		else std::cout << "Warning: Unknown IPFP algorithm id" << std::endl;
-		std::cout << "Using IPFP Converge Thresh " << cfg.ipfp_converge_thresh << std::endl;
-		std::cout << "Using IPFP Oscillatory Converge Thresh " << cfg.osc_ipfp_converge_thresh << std::endl;
+		std::cout << "Using PPM mass tolerance " << cfg.ppm_mass_tol << std::endl;
+		if( !cfg.use_single_energy_cfm ){
+			if( cfg.ipfp_algorithm == 0 ) std::cout << "Using standard IPFP" << std::endl;
+			else if( cfg.ipfp_algorithm == 1 ) std::cout << "Using GEMA" << std::endl;
+			else if( cfg.ipfp_algorithm == 2 ) std::cout << "Using IPFP with Oscillatory Adjustment" << std::endl;
+			else std::cout << "Warning: Unknown IPFP algorithm id" << std::endl;
+			std::cout << "Using IPFP Converge Thresh " << cfg.ipfp_converge_thresh << std::endl;
+			std::cout << "Using IPFP Oscillatory Converge Thresh " << cfg.osc_ipfp_converge_thresh << std::endl;
+		}
+		if( cfg.use_lower_energy_params_for_init ) std::cout << "Initialising higher energy params with those of one level lower" << std::endl;
+		if( cfg.theta_function == LINEAR_THETA_FUNCTION ) std::cout << "Using linear function for theta" << std::endl;
+		else if( cfg.theta_function == NEURAL_NET_THETA_FUNCTION ){ 
+			std::cout << "Using neural net for theta with " << cfg.theta_nn_hlayer_num_nodes.size() << " hidden layers: ";
+			for( int i = 0; i < cfg.theta_nn_hlayer_num_nodes.size(); i++ )
+				std::cout << cfg.theta_nn_hlayer_num_nodes[i] << " ";
+			std::cout << "and activation functions: ";
+			for( int i = 0; i < cfg.theta_nn_layer_act_func_ids.size(); i++ )
+				std::cout << cfg.theta_nn_layer_act_func_ids[i] << " ";
+			std::cout << std::endl;
+		}
+		if( cfg.obs_function == NORMAL_OBS_FUNCTION ) std::cout << "Using normally distributed observation function" << std::endl;
+		else if( cfg.obs_function == UNIFORM_OBS_FUNCTION ) std::cout << "Using windowed uniform distribution observation function" << std::endl;
+		else{
+			std::cout << "Warning: Unrecognised observation function (" << cfg.obs_function << "). Using default" << std::endl;
+			cfg.obs_function = DEFAULT_OBS_FUNCTION;
+		}
 	}
-
 }
 
 void initDerivedConfig( config_t &cfg, int se_energy ){
+
+	//Force single energy where only one spectrum level
+	if( cfg.spectrum_depths.size() == 1 )
+		cfg.use_single_energy_cfm = 1;
 
 	//Derived Parameters
 	cfg.map_d_to_energy.resize( cfg.model_depth );
@@ -154,23 +244,8 @@ void initDerivedConfig( config_t &cfg, int se_energy ){
 		cfg.map_d_to_energy[d] = energy;
 	}
 
-	if(cfg.interpolate_spectra){
-		cfg.dv_spectrum_depths.resize( cfg.model_depth );
-		cfg.dv_spectrum_weights.resize( cfg.model_depth );
-
-		for( unsigned int d = 0; d < cfg.model_depth; d++ ){
-			cfg.dv_spectrum_depths[d] = d+1;
-			int energy = cfg.map_d_to_energy[d];
-			if( cfg.spectrum_depths[energy] == d+1 )
-				cfg.dv_spectrum_weights[d] = cfg.spectrum_weights[energy];
-			else
-				cfg.dv_spectrum_weights[d] = cfg.intermediate_weights;	
-		}
-	}
-	else{
-		cfg.dv_spectrum_depths = cfg.spectrum_depths;
-		cfg.dv_spectrum_weights = cfg.spectrum_weights;
-	}
+	cfg.dv_spectrum_depths = cfg.spectrum_depths;
+	cfg.dv_spectrum_weights = cfg.spectrum_weights;
 
 	//Re-normalise weights
 	double sum = 0.0;

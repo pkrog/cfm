@@ -19,7 +19,7 @@
 #define __COMMS_H__
 
 #include "Param.h"
-
+#include <lbfgs.h>
 #include <string>
 #include <set>
 
@@ -30,7 +30,7 @@ class Comms{
 public:
 	Comms( );
 	virtual void setMasterUsedIdxs( ) = 0;
-	virtual void collectGradsInMaster( std::vector<double> &grads ) = 0;
+	virtual void collectGradsInMaster(  double *grads ) = 0;
 	virtual void broadcastParams( Param *param ) = 0;
 	virtual void printToMasterOnly( const char *msg ) = 0;
 	void broadcastInitialParams( Param *param );
@@ -38,8 +38,10 @@ public:
 	double collectQInMaster( double Q );
 	bool isMaster(){ return mpi_rank == MASTER; };
 	int broadcastConverged( int converged );
+	int broadcastNumUsed( int num_used );
 	int collectSumInMaster( int partial);
 	double broadcastQ( double Q );
+	void broadcastGorX( lbfgsfloatval_t *g, int n );
 	std::set<unsigned int> used_idxs;
 	unsigned int num_used;
 	virtual ~Comms(){}
@@ -53,7 +55,7 @@ class WorkerComms : public Comms{
 
 public:
 	void setMasterUsedIdxs( );
-	void collectGradsInMaster( std::vector<double> &grads );
+	void collectGradsInMaster(  double *grads );
 	void broadcastParams( Param *param );
 	void printToMasterOnly( const char *msg ){};	//Do nothing
 };
@@ -62,7 +64,7 @@ class MasterComms : public Comms{
 
 public:
 	void setMasterUsedIdxs( );
-	void collectGradsInMaster( std::vector<double> &grads );
+	void collectGradsInMaster(  double *grads );
 	void broadcastParams( Param *param );
 	std::set<unsigned int> master_used_idxs;
 	std::vector<std::set<unsigned int > > worker_used_idxs;

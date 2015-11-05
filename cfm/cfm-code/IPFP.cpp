@@ -107,7 +107,8 @@ beliefs_t *IPFP::calculateBeliefs(){
 	prev_marginals.resize(0);
 
 	//Intialise all messages using simple junction tree inference
-	runInferenceDownwardPass( down_msgs, moldata, *cfg, cfg->model_depth );
+	Inference infer( moldata, cfg );
+	infer.runInferenceDownwardPass( down_msgs, cfg->model_depth );
 
 	//Initialise factor transition/persistence probabilities 
 	//(these will change on evidence so we need this copy)
@@ -523,20 +524,26 @@ void IPFP::initLogSpecFactor( spec_factor_t &log_spec_factor, const Spectrum *sp
 	log_spec_factor.resize( spectrum->size() );
 	const FragmentGraph *fg = moldata->getFragmentGraph();
 	unsigned int num_fragments = fg->getNumFragments();
-	for( unsigned int i = 0; i < spectrum->size(); i++ ){
+	Spectrum::const_iterator itp = spectrum->begin();
+	for( unsigned int i = 0; itp != spectrum->end(); ++itp, i++ ){
 
-		const Peak *pk = &((*spectrum)[i]);
 		log_spec_factor[i].resize( num_fragments );
 		
 		//Set peak sigma based on the specified mass tolerances and the peak of interest
 		//(assume tolerances cut things off at approx 3 x std deviation)
-		double peak_sigma = 0.33*getMassTol(cfg->abs_mass_tol, cfg->ppm_mass_tol, pk->mass);
+		double peak_sigma = 0.33*getMassTol(cfg->abs_mass_tol, cfg->ppm_mass_tol, itp->mass);
 		
 		double norm = -0.5*std::log(4*pi*peak_sigma*peak_sigma);
 		double denom = 0.25/(peak_sigma*peak_sigma);
 		for( unsigned int j = 0; j < num_fragments; j++ ){
 			const Fragment *fgt = fg->getFragmentAtIdx(j);
-			log_spec_factor[i][j] = norm - denom*(fgt->getMass() - pk->mass)*(fgt->getMass() - pk->mass);
+			double tmp_mass_diff = fgt->getMass() - itp->mass;
+			if( fabs(tmp_mass_diff) <= 3*peak_sigma ){
+				if( cfg->obs_function == UNIFORM_OBS_FUNCTION ) log_spec_factor[i][j] = norm;
+				else log_spec_factor[i][j] = norm - denom*tmp_mass_diff*tmp_mass_diff;
+			}
+			else
+				log_spec_factor[i][j] = NULL_PROB;
 		}
 
 	}
@@ -545,8 +552,9 @@ void IPFP::initLogSpecFactor( spec_factor_t &log_spec_factor, const Spectrum *sp
 void IPFP::initPeakTargets( Message &peak_targets, const Spectrum *spectrum ){
 
 	peak_targets.reset(spectrum->size());
-	for( unsigned int i = 0 ; i < spectrum->size(); i++ )
-		peak_targets.addToIdx(i, std::log((*spectrum)[i].intensity * 0.01));
+	Spectrum::const_iterator itp = spectrum->begin();
+	for( unsigned int i = 0; itp != spectrum->end(); ++itp, i++ )
+		peak_targets.addToIdx(i, std::log(itp->intensity * 0.01));
 }
 
 void IPFP::computeMarginal( Message &out, unsigned int spec_depth ){

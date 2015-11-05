@@ -32,6 +32,10 @@
 #include <GraphMol/AtomIterators.h>
 #include <GraphMol/BondIterators.h>
 #include <GraphMol/PeriodicTable.h>
+#include <GraphMol/PartialCharges/GasteigerCharges.h>
+#include <GraphMol/ForceFieldHelpers/MMFF/AtomTyper.h>
+#include <GraphMol/FragCatalog/FragCatParams.h>
+#include <GraphMol/Substruct/SubstructMatch.h>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/tokenizer.hpp>
@@ -47,13 +51,33 @@ const boost::ptr_vector<Feature> &FeatureCalculator::featureCogs(){
 
 	if (!initialised) {
 		cogs.push_back( new BreakAtomPair() );
+		cogs.push_back( new BrokenOrigBondType() );
+		cogs.push_back( new NeighbourOrigBondTypes() );
 		cogs.push_back( new GasteigerCharges() );
 		cogs.push_back( new HydrogenMovement() );
+		cogs.push_back( new HydrogenRemoval() );
+		cogs.push_back( new IonRootAtom() );
+		cogs.push_back( new NLRootAtom() );
+		cogs.push_back( new IonicFeatures() );
 		cogs.push_back( new IonRootPairs() );
 		cogs.push_back( new IonRootTriples() );
+		cogs.push_back( new IonFunctionalGroupFeatures() );
+		cogs.push_back( new NLFunctionalGroupFeatures() );
+		cogs.push_back( new IonExtraFunctionalGroupFeatures() );
+		cogs.push_back( new NLExtraFunctionalGroupFeatures() );
+		cogs.push_back( new IonFunctionalGroupFeaturesD2() );
+		cogs.push_back( new NLFunctionalGroupFeaturesD2() );
+		cogs.push_back( new IonFunctionalGroupRootOnlyFeatures() );
+		cogs.push_back( new NLFunctionalGroupRootOnlyFeatures() );
 		cogs.push_back( new NLRootPairs() );
 		cogs.push_back( new NLRootTriples() );
+		cogs.push_back( new RadicalFeatures() );
 		cogs.push_back( new RingFeatures() );
+		cogs.push_back( new ExtraRingFeatures() );
+		cogs.push_back( new IonRootMMFFAtomType() );
+		cogs.push_back( new NLRootMMFFAtomType() );
+		cogs.push_back( new IonNeighbourMMFFAtomType() );
+		cogs.push_back( new NLNeighbourMMFFAtomType() );
 		cogs.push_back( new QuadraticFeatures() );
 		initialised = true;
 	}
@@ -165,10 +189,26 @@ FeatureVector *FeatureCalculator::computeFV( const RootedROMolPtr *ion, const Ro
 
 	//Compute all other features
 	std::vector<int>::iterator it = used_feature_idxs.begin();
-	for( ; it != used_feature_idxs.end(); ++it )
-		featureCogs()[*it].compute( *fv, ion, nl );
+	for( ; it != used_feature_idxs.end(); ++it ){
+		try{
+			featureCogs()[*it].compute( *fv, ion, nl );
+		}
+		catch( std::exception e ){
+			std::cout << "Could not compute " << featureCogs()[*it].getName() << std::endl;
+			throw FeatureCalculationException("Could not compute " + featureCogs()[*it].getName());
+		}
+	}
 
 	return fv;
+}
+
+bool FeatureCalculator::includesFeature( const std::string &fname ){
+	std::vector<int>::iterator it = used_feature_idxs.begin();
+	for( ; it != used_feature_idxs.end(); ++it ){
+		const Feature *cog = &(featureCogs()[*it]);
+		if( cog->getName() == fname ) return true;
+	}
+	return false;
 }
 
 void FeatureVector::addFeature( double value ){
@@ -432,6 +472,164 @@ void NLRootTriples::compute( FeatureVector &fv, const RootedROMolPtr *ion, const
 	addRootTripleFeatures( fv, paths, ring_break);
 }
 
+
+void RootAtomFeature::computeRootAtomFeature( FeatureVector &fv, const RootedROMolPtr *mol, bool ring_break ) const{
+
+	int offset = fv.getTotalLength();
+
+	//Add the root atom
+	std::vector<std::string>::const_iterator it1;
+	const std::vector<std::string> *ok_symbols = &OKsymbols();
+	int idx = 0;
+	bool found = false;
+	for( it1 = ok_symbols->begin(); it1 != ok_symbols->end(); ++it1, idx++ ){
+		if( (*it1) == mol->root->getSymbol() ){ 
+			fv.addFeatureAtIdx(1.0, offset + idx ); 
+			found = true;
+		}
+		else fv.addFeatureAtIdx(0.0, offset + idx );
+	}
+	if( mol->root->getSymbol() == "H" ){ 
+		fv.addFeatureAtIdx(1.0, offset + idx ); 
+		found=true; 
+	}
+	else fv.addFeatureAtIdx(0.0, offset + idx );
+	idx++;
+	if( !found ) fv.addFeatureAtIdx(1.0, offset + idx );
+	else fv.addFeatureAtIdx(0.0, offset + idx );
+
+	//Add the other root atom (in case of ring break)
+	idx = 0; found = false;
+	if( ring_break && mol->root->getSymbol() != mol->other_root->getSymbol()){
+		for( it1 = ok_symbols->begin(); it1 != ok_symbols->end(); ++it1, idx++ ){
+			if( ring_break && *it1 == mol->other_root->getSymbol() ){ 
+				fv.addFeatureAtIdx(1.0, offset + idx );
+				found = true;
+			}
+		}
+		if( mol->root->getSymbol() == "H" ){
+			fv.addFeatureAtIdx(1.0, offset + idx++ );
+			found = true;
+		}
+		if( !found ) fv.addFeatureAtIdx(1.0, offset + idx );
+	}
+
+}
+
+void IonRootAtom::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	computeRootAtomFeature( fv, ion, ring_break );
+}
+
+void NLRootAtom::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	computeRootAtomFeature( fv, nl, ring_break );
+}
+
+void FunctionalGroupFeature::addFunctionalGroupFeatures( FeatureVector &fv, const RootedROMolPtr *mol, int max_depth, int is_ring_break, bool extra ) const{
+
+	int offset = fv.getTotalLength();
+
+	int num_grps = NUM_FGRPS;
+	if( extra ) num_grps = NUM_EXTRA_FGRPS;
+
+	//Fill an array to begin with
+	std::vector<int> tmp_full_fv( (num_grps+1)*(max_depth+1), 0 );
+	int initial_length = fv.getTotalLength();
+	addFunctionalGroupFeaturesFromAtom( tmp_full_fv, mol->root, mol->mol, mol->root, max_depth, 0, extra );
+	if( is_ring_break ) addFunctionalGroupFeaturesFromAtom( tmp_full_fv, mol->other_root, mol->mol, mol->other_root, max_depth, 0, extra );
+	
+	//Then copy the array into the sparse format fv
+	std::vector<int>::iterator it = tmp_full_fv.begin();
+	for( int idx = 0; it != tmp_full_fv.end(); ++it, idx++ )
+		fv.addFeatureAtIdx((double)(*it), offset + idx);
+}
+
+void FunctionalGroupFeature::addFunctionalGroupFeaturesFromAtom( std::vector<int> &tmp_full_fv, const RDKit::Atom *atom, const romol_ptr_t mol, const RDKit::Atom *prev_atom, int max_depth, int depth, bool extra ) const{
+
+	int num_grps = NUM_FGRPS;
+	if( extra ) num_grps = NUM_EXTRA_FGRPS;
+
+	//Check for functional groups at the current atom, and add them to the feature vector 
+	//iff they were not already found at a lesser depth.
+	std::vector<unsigned int> fgrps;
+	if( extra) atom->getProp<std::vector<unsigned int> >("ExtraFunctionalGroups", fgrps);
+	else atom->getProp<std::vector<unsigned int> >("FunctionalGroups", fgrps);
+	std::vector<unsigned int>::iterator it = fgrps.begin();
+	for( ; it != fgrps.end(); ++it ){
+		bool added_at_lesser_depth = false;
+		for( int d = 0; d <= depth; d++ ){
+			int idx = *it + d*(num_grps+1);
+			if( tmp_full_fv[idx] ){
+				added_at_lesser_depth = true;
+				break;
+			}
+		}
+		if(!added_at_lesser_depth) tmp_full_fv[*it + depth*(num_grps+1)] = 1;
+	}
+
+	//Iterate until max_depth is reached
+	if( depth < max_depth ){
+		RDKit::ROMol::ADJ_ITER_PAIR itp = mol.get()->getAtomNeighbors( atom );
+		for( ; itp.first != itp.second; ++itp.first ){
+			RDKit::Atom *nbr_atom = mol.get()->getAtomWithIdx(*itp.first);	
+			if( nbr_atom != prev_atom ) addFunctionalGroupFeaturesFromAtom( tmp_full_fv, nbr_atom, mol, atom, max_depth, depth+1, extra );
+		}
+	}
+}
+
+void NLFunctionalGroupFeatures::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	addFunctionalGroupFeatures( fv, nl, 1, ring_break );
+}
+
+void IonFunctionalGroupFeatures::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	addFunctionalGroupFeatures( fv, ion, 1, ring_break );
+}
+
+void NLFunctionalGroupRootOnlyFeatures::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	addFunctionalGroupFeatures( fv, nl, 0, ring_break );
+}
+
+void IonFunctionalGroupRootOnlyFeatures::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	addFunctionalGroupFeatures( fv, ion, 0, ring_break );
+}
+
+void NLFunctionalGroupFeaturesD2::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	addFunctionalGroupFeatures( fv, nl, 2, ring_break );
+}
+
+void IonFunctionalGroupFeaturesD2::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	addFunctionalGroupFeatures( fv, ion, 2, ring_break );
+}
+
+void NLExtraFunctionalGroupFeatures::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	addFunctionalGroupFeatures( fv, nl, 1, ring_break, true );
+}
+
+void IonExtraFunctionalGroupFeatures::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	addFunctionalGroupFeatures( fv, ion, 1, ring_break, true );
+}
+
 void GasteigerCharges::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
 	
 	//Collect the charges from the root atoms
@@ -519,6 +717,7 @@ void HydrogenMovement::compute( FeatureVector &fv, const RootedROMolPtr *ion, co
 		std::string symbol = (*ai)->getSymbol();
 		mass += pt->getMostCommonIsotopeMass(symbol);
 		mass += (*ai)->getTotalNumHs()*pt->getMostCommonIsotopeMass("H");
+		if( !(*ai)->hasProp("OriginalMass") ) std::cout << "No OriginalMass prop..." << std::endl;
 		(*ai)->getProp<double>("OriginalMass", orig_mass);
 		h_movement += (mass - orig_mass);
 	}
@@ -532,6 +731,133 @@ void HydrogenMovement::compute( FeatureVector &fv, const RootedROMolPtr *ion, co
 	if( fabs( h_movement ) > 4.0 ) fv.addFeature( 1.0 );
 	else fv.addFeature( 0.0 );
 }
+
+void HydrogenRemoval::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl  ) const{
+
+	double h_movement = 0.0;
+
+	//Compute the mass difference in the neutral loss
+	RDKit::PeriodicTable *pt = RDKit::PeriodicTable::getTable();
+	RDKit::ROMol::AtomIterator ai;
+	for( ai = nl->mol.get()->beginAtoms(); ai != nl->mol.get()->endAtoms(); ++ai ){
+		double orig_mass, mass = 0.0;
+		std::string symbol = (*ai)->getSymbol();
+		mass += pt->getMostCommonIsotopeMass(symbol);
+		mass += (*ai)->getTotalNumHs()*pt->getMostCommonIsotopeMass("H");
+		(*ai)->getProp<double>("OriginalMass", orig_mass);
+		h_movement += (mass - orig_mass);
+	}
+
+	//Binary on/off indicating whether a particular transfer occurred
+	for( double h = -4.0; h <= 4.0; h += 1.0 ){	
+		if( fabs( h - h_movement ) < 0.5 ) fv.addFeature( 1.0 );
+		else fv.addFeature(0.0);
+	}
+	//Catch-all for all other hydrogen transfers
+	if( fabs( h_movement ) > 4.0 ) fv.addFeature( 1.0 );
+	else fv.addFeature( 0.0 );
+}
+
+void RadicalFeatures::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+
+	int ion_radical = moleculeHasSingleRadical( ion->mol.get() );
+	int nl_radical = moleculeHasSingleRadical( nl->mol.get()  );
+	fv.addFeature( ion_radical );						//Ion is radical
+	fv.addFeature( nl_radical );						//NL is radical
+	fv.addFeature( !ion_radical && !nl_radical );		//Neither NL or Ion are radical
+}
+
+void IonicFeatures::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+	
+	int nl_pos = 0, nl_neg = 0, ion_pos = 0, ion_neg = 0;
+
+	RDKit::ROMol::AtomIterator ai;
+	for( ai = nl->mol.get()->beginAtoms(); ai != nl->mol.get()->endAtoms(); ++ai ){
+		int ionic_frag_q; (*ai)->getProp("IonicFragmentCharge", ionic_frag_q);
+		if( ionic_frag_q < 0 ) nl_neg = 1;
+		if( ionic_frag_q > 0 ) nl_pos = 1;
+	} 
+	for( ai = ion->mol.get()->beginAtoms(); ai != ion->mol.get()->endAtoms(); ++ai ){
+		int ionic_frag_q; (*ai)->getProp("IonicFragmentCharge", ionic_frag_q);
+		if( ionic_frag_q < 0 ) ion_neg = 1;
+		if( ionic_frag_q > 0 ) ion_pos = 1;
+	} 
+	
+	fv.addFeature( nl_pos );	 	//NL has positive ionic fragment
+	fv.addFeature( ion_pos );	//Ion has positive ionic fragment
+	fv.addFeature( nl_neg );		//NL has negative ionic fragment
+	fv.addFeature( ion_neg );	//Ion has negative ionic fragment
+	fv.addFeature( !( nl_pos || nl_pos || ion_neg || ion_pos) );	//No ionic fragments anywhere
+}
+
+
+void BrokenOrigBondType::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+
+	int bondtype; nl->mol.get()->getProp( "BrokenOrigBondType", bondtype );
+	fv.addFeature( bondtype == 1 );				//SINGLE
+	fv.addFeature( bondtype == 2 );				//DOUBLE
+	fv.addFeature( bondtype == 3 );				//TRIPLE
+	fv.addFeature( bondtype == 4 );				//AROMATIC
+	fv.addFeature( bondtype == 5 );				//CONJUGATED
+	fv.addFeature( bondtype == 6 );				//IONIC
+	fv.addFeature( bondtype == 7 );				//H ONLY
+
+}
+
+void addNeighbourOrigBondFeatures( FeatureVector &fv, const RootedROMolPtr *mol, int ring_break ){
+
+	std::vector<int> seen_types(6, 0);
+	int feature_offset = fv.getTotalLength();
+	RDKit::ROMol::ADJ_ITER_PAIR itp = mol->mol->getAtomNeighbors( mol->root );
+	for( ; itp.first != itp.second; ++itp.first ){
+		RDKit::Bond *bond = mol->mol->getBondBetweenAtoms( *itp.first, mol->root->getIdx() );
+		int bondtype; bond->getProp( "OrigBondType", bondtype );
+		int idx = feature_offset + bondtype;
+		if( !seen_types[bondtype] ) fv.addFeatureAtIdx( 1.0, idx );
+		seen_types[bondtype] = 1;
+	}
+	if( ring_break){
+		itp = mol->mol->getAtomNeighbors( mol->other_root );
+		for( ; itp.first != itp.second; ++itp.first ){
+			RDKit::Bond *bond = mol->mol->getBondBetweenAtoms( *itp.first, mol->other_root->getIdx() );
+			int bondtype; bond->getProp( "OrigBondType", bondtype );
+			int idx = feature_offset + bondtype;
+			if( !seen_types[bondtype] ) fv.addFeatureAtIdx( 1.0, idx );
+				seen_types[bondtype] = 1;
+		}
+	}
+	if( fv.getTotalLength() - feature_offset == 0 ) fv.addFeatureAtIdx( 1.0, feature_offset );	//No connected bonds
+	if( fv.getTotalLength() - feature_offset < 6 ) fv.addFeatureAtIdx( 0.0, feature_offset + 5 );	//Update length
+}
+
+
+
+void NeighbourOrigBondTypes::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	addNeighbourOrigBondFeatures( fv, ion, ring_break );
+	addNeighbourOrigBondFeatures( fv, nl, ring_break );
+}
+
+void ExtraRingFeatures::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl )  const{
+	
+	//Not a ring break
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	fv.addFeature( !ring_break );	
+	
+	//Ion root is in ring
+	RDKit::MolOps::findSSSR( *ion->mol );	
+	RDKit::RingInfo *rinfo = ion->mol->getRingInfo();
+	fv.addFeature( rinfo->minBondRingSize(ion->root->getIdx()) > 0 );
+
+	//NL root is in ring
+	RDKit::MolOps::findSSSR( *nl->mol );	
+	rinfo = nl->mol->getRingInfo();
+	fv.addFeature( rinfo->minBondRingSize(nl->root->getIdx()) > 0 );
+}
+
 
 void RingFeatures::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl )  const{
 	
@@ -595,6 +921,94 @@ int RingFeatures::calcRootDistance(const RootedROMolPtr *mol) const{
 	return -1; //OtherRoot not found
 }
 
+void IonRootMMFFAtomType::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+
+	int offset = fv.getTotalLength() - 1;
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+
+	//Set features for atom types
+	int atomtype, otheratomtype = 0;
+	ion->root->getProp<int>("MMFFAtomType", atomtype);
+	fv.addFeatureAtIdx(1.0, offset + atomtype );
+	if( ring_break ){ 
+		ion->other_root->getProp<int>("MMFFAtomType", otheratomtype);
+		fv.addFeatureAtIdx(1.0, offset + otheratomtype );
+	}
+	//100 Features in total - last features indicates out-of-range
+	if( atomtype < 1 || atomtype > 99 ) 
+		fv.addFeatureAtIdx(1.0, offset + 100);
+	else if(ring_break && ( otheratomtype < 1 || otheratomtype > 99 ) )
+		fv.addFeatureAtIdx(1.0, offset + 100);
+	else
+		fv.addFeatureAtIdx(0.0, offset + 100);
+
+}
+
+void NLRootMMFFAtomType::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+
+	int offset = fv.getTotalLength() - 1;
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+
+	//Set features for atom type(s)
+	int atomtype, otheratomtype = 0;
+	nl->root->getProp<int>("MMFFAtomType", atomtype);
+	fv.addFeatureAtIdx(1.0, offset + atomtype);
+	if( ring_break ){ 
+		nl->other_root->getProp<int>("MMFFAtomType", otheratomtype);
+		fv.addFeatureAtIdx(1.0, offset + otheratomtype);
+	}
+	//100 Features in total - last features indicates out-of-range
+	if( atomtype < 1 || atomtype > 99 ) 
+		fv.addFeatureAtIdx(1.0, offset + 100);
+	else if(ring_break && ( otheratomtype < 1 || otheratomtype > 99 ) )
+		fv.addFeatureAtIdx(1.0, offset + 100);
+	else
+		fv.addFeatureAtIdx(0.0, offset + 100);
+
+}
+
+void IonNeighbourMMFFAtomType::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+
+	int offset = fv.getTotalLength() - 1;
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	fv.addFeatureAtIdx(0.0, offset + 101);	//Make the feature vector the right length
+	addNeighbourAtomTypes( fv, ion, ion->root, offset );
+	if( ring_break ) addNeighbourAtomTypes( fv, ion, ion->other_root, offset );
+	
+}
+
+void NLNeighbourMMFFAtomType::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
+
+	int offset = fv.getTotalLength() - 1;
+	int ring_break;
+	nl->mol.get()->getProp( "IsRingBreak", ring_break );
+	fv.addFeatureAtIdx(0.0, offset + 101);	//Make the feature vector the right length
+	addNeighbourAtomTypes( fv, nl, nl->root, offset );
+	if( ring_break ) addNeighbourAtomTypes( fv, nl, nl->other_root, offset );
+	
+}
+
+void NeighbourMMFFFeature::addNeighbourAtomTypes( FeatureVector &fv, const RootedROMolPtr *mol, const RDKit::Atom *root, int offset ) const{
+
+	//Iterate over the neighbours of the root atom
+	RDKit::ROMol::ADJ_ITER_PAIR itp = mol->mol->getAtomNeighbors( root );
+	int num_added = 0;
+	for( ; itp.first != itp.second; ++itp.first ){
+
+			RDKit::Atom *nbr_atom = mol->mol->getAtomWithIdx(*itp.first);
+			int atomtype;
+			nbr_atom->getProp<int>("MMFFAtomType", atomtype);
+			fv.addFeatureAtIdx(1.0, offset + atomtype );
+			if( atomtype < 1 || atomtype > 99 ) 
+				fv.addFeatureAtIdx(1.0, offset + 100);
+			num_added++;
+	}
+	//Additional feature indicating no neighbours
+	if( num_added == 0 ) fv.addFeatureAtIdx(1.0, offset + 101);
+}
 
 void QuadraticFeatures::compute( FeatureVector &fv, const RootedROMolPtr *ion, const RootedROMolPtr *nl ) const{
 
@@ -620,4 +1034,171 @@ void QuadraticFeatures::compute( FeatureVector &fv, const RootedROMolPtr *ion, c
 	//Update the feature length (without modifying any features).
 	int total_num_features = n + (n-1)*(n-2)/2;
 	fv.addFeatureAtIdx(0.0, total_num_features-1); 
+}
+
+void FeatureHelper::initialiseRoots( RDKit::RWMol *rwmol ){
+	RDKit::ROMol::AtomIterator ai;
+	for( ai = rwmol->beginAtoms(); ai != rwmol->endAtoms(); ++ai ){
+		(*ai)->setProp("Root", 0 );
+		(*ai)->setProp("OtherRoot", 0 );
+	}
+}
+
+void FeatureHelper::labelGasteigers( RDKit::RWMol *rwmol ){
+	// For each atom, will store the result in prop "OrigGasteigerCharge"
+	RDKit::computeGasteigerCharges(rwmol); 
+	RDKit::ROMol::AtomIterator ai;
+	for( ai = rwmol->beginAtoms(); ai != rwmol->endAtoms(); ++ai ){
+		double gc;
+		(*ai)->getProp<double>("_GasteigerCharge", gc);
+		(*ai)->setProp("OrigGasteigerCharge", gc );
+	}
+}
+
+
+void FeatureHelper::labelFunctionalGroups( RDKit::RWMol *rwmol, bool extra ){
+
+	const RDKit::MOL_SPTR_VECT &fgrps = fparams->getFuncGroups();
+	const RDKit::MOL_SPTR_VECT &xfgrps = xfparams->getFuncGroups();
+
+	std::vector<std::vector<unsigned int> > atom_fgidxs(rwmol->getNumAtoms());
+	
+	std::string prop_name;
+	int num_grps, idx = 0;
+    RDKit::MOL_SPTR_VECT::const_iterator fgrpi, fgrpe;
+	if( extra ){ 
+		fgrpi = xfgrps.begin(); fgrpe = xfgrps.end(); 
+		num_grps = NUM_EXTRA_FGRPS; 
+		prop_name = "ExtraFunctionalGroups";
+	}
+	else{ fgrpi = fgrps.begin(); fgrpe = fgrps.end(); 
+		  num_grps = NUM_FGRPS; 
+		prop_name = "FunctionalGroups";
+	}
+
+    for (; fgrpi != fgrpe; ++fgrpi, idx++) {
+      std::string fname;
+      (*fgrpi)->getProp("_Name", fname);
+	  std::vector<RDKit::MatchVectType> fgpMatches;  //The format for each match is (queryAtomIdx, molAtomIdx)
+      RDKit::SubstructMatch(*rwmol, *(fgrpi->get()), fgpMatches);
+	  
+	  std::vector<RDKit::MatchVectType>::const_iterator mat_it = fgpMatches.begin();
+	  for (; mat_it != fgpMatches.end(); ++mat_it ) {
+		  RDKit::MatchVectType::const_iterator it = (*mat_it).begin();
+		  for( ; it != (*mat_it).end(); ++it )
+			atom_fgidxs[it->second].push_back(idx);
+	  }
+	}
+	// For each atom, store the list of functional group indexes in property "FunctionalGroups"
+	RDKit::ROMol::AtomIterator ai;
+	for( ai = rwmol->beginAtoms(); ai != rwmol->endAtoms(); ++ai ){
+		//Add an additional function group to indicate 'No Functional Groups'
+		if( atom_fgidxs[(*ai)->getIdx()].size() == 0 )  
+			atom_fgidxs[(*ai)->getIdx()].push_back( num_grps );
+		(*ai)->setProp(prop_name, atom_fgidxs[(*ai)->getIdx()]);
+	}
+
+}
+
+void FeatureHelper::labelMMFFAtomTypes( RDKit::RWMol *rwmol ){
+	
+	//H-H causes exception...so assign to H-C atom type 5 (which is not used anyway)
+	if( rwmol->getAtomWithIdx(0)->getSymbol() == "H" ){
+		rwmol->getAtomWithIdx(0)->setProp("MMFFAtomType", (int)5 );
+		return;
+	}
+	// For each atom, will store the result in prop "MMFFAtomType"
+	RDKit::MMFF::MMFFMolProperties molprop( *rwmol );
+
+	RDKit::ROMol::AtomIterator ai;
+	for( ai = rwmol->beginAtoms(); ai != rwmol->endAtoms(); ++ai ){
+		uint8_t atomtype = molprop.getMMFFAtomType( (*ai)->getIdx() );
+		(*ai)->setProp("MMFFAtomType", (int)atomtype );
+	}
+
+}
+
+void FeatureHelper::labelAromatics( RDKit::RWMol *rwmol ){	
+	
+	//Set bond aromaticity information
+	RDKit::ROMol::BondIterator bi;
+	for( bi = rwmol->beginBonds(); bi != rwmol->endBonds(); ++bi ){
+		int aromatic = (*bi)->getIsAromatic();
+		(*bi)->setProp("InAromaticRing", aromatic);
+		(*bi)->setProp("InDblAromaticRing", 0);
+	}
+
+	//Check for any double-aromatic systems
+	RDKit::MolOps::findSSSR( *rwmol );	
+	RDKit::RingInfo *rinfo = rwmol->getRingInfo();
+	std::vector<int> double_aromatic_idxs;
+	for( unsigned int i = 0; i < rwmol->getNumBonds(); i++ ){
+		if( rinfo->numBondRings(i) <= 1 ) continue;
+		RDKit::Bond *bond = rwmol->getBondWithIdx(i);
+		if( bond->getIsAromatic() ) 
+			double_aromatic_idxs.push_back(i);
+	}
+	
+	//If any are found, label all the bonds within them
+	if(double_aromatic_idxs.size() == 0 ) return;
+		
+	//Consider each ring...
+	RDKit::RingInfo::VECT_INT_VECT brings = rinfo->bondRings();
+	RDKit::RingInfo::VECT_INT_VECT::iterator bit = brings.begin();
+	for( ; bit != brings.end(); ++bit ){
+
+		//Check for a double aromatic bond within the ring
+		bool hasDblArom = false;
+		RDKit::RingInfo::INT_VECT::iterator it;
+		for( it = bit->begin(); it != bit->end(); ++it ){
+			std::vector<int>::iterator ii = double_aromatic_idxs.begin();
+			for( ; ii != double_aromatic_idxs.end(); ++ii )
+				if( *ii == *it ) hasDblArom = true;
+			if(hasDblArom) break;
+		}
+
+		//If one exists, label all bonds in the ring
+		if( !hasDblArom ) continue;
+		for( it = bit->begin(); it != bit->end(); ++it ){
+			RDKit::Bond *bond = rwmol->getBondWithIdx(*it);
+			bond->setProp("InDblAromaticRing", 1);
+		}
+		
+	}
+}
+
+void FeatureHelper::labelOriginalMasses( RDKit::RWMol *rwmol ){
+	RDKit::PeriodicTable *pt = RDKit::PeriodicTable::getTable();
+	RDKit::ROMol::AtomIterator ai;
+	for( ai = rwmol->beginAtoms(); ai != rwmol->endAtoms(); ++ai ){
+		double mass = 0.0;
+		std::string symbol = (*ai)->getSymbol();
+		mass += pt->getMostCommonIsotopeMass(symbol);
+		mass += (*ai)->getTotalNumHs()*pt->getMostCommonIsotopeMass("H");
+		(*ai)->setProp("OriginalMass", mass);
+	}
+}
+
+
+void FeatureHelper::labelAtomsWithLonePairs( RDKit::RWMol *rwmol ){
+	RDKit::PeriodicTable *pt = RDKit::PeriodicTable::getTable();
+	RDKit::ROMol::AtomIterator ai;
+	RDKit::MolOps::findSSSR( *rwmol );	
+	RDKit::RingInfo *rinfo = rwmol->getRingInfo();
+	for( ai = rwmol->beginAtoms(); ai != rwmol->endAtoms(); ++ai ){
+		std::string symbol = (*ai)->getSymbol();
+		int nouter = pt->getNouterElecs( symbol.c_str() );
+		int def_val = pt->getDefaultValence(symbol.c_str());
+		(*ai)->setProp("HasLP", (int)(nouter > def_val && def_val != 1 && def_val != -1) );	//Allow O,N,S,P..but not C, Halogens, Metals,.
+	}
+}
+
+void FeatureHelper::labelOriginalBondTypes( RDKit::RWMol *rwmol ){
+	
+	RDKit::ROMol::BondIterator bi;	
+	for( bi = rwmol->beginBonds(); bi != rwmol->endBonds(); ++bi ){
+		if( (*bi)->getIsAromatic() ) (*bi)->setProp("OrigBondType", 4);
+		else if( (*bi)->getIsConjugated() ) (*bi)->setProp("OrigBondType", 5);
+		else (*bi)->setProp("OrigBondType", (int)((*bi)->getBondTypeAsDouble()) );
+	}
 }

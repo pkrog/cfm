@@ -20,20 +20,10 @@
 #include <GraphMol/RingInfo.h>
 #include <GraphMol/ROMol.h>
 
+//#ifndef __DEBUG_CONSTRAINTS__
+//#define __DEBUG_CONSTRAINTS__
 
-MILP::MILP( RDKit::ROMol *a_mol, int a_fragmentidx, int a_broken_ringidx  ){
-	mol = a_mol;
-	fragmentidx = a_fragmentidx;
-	broken_ringidx = a_broken_ringidx;
-}
-
-MILP::MILP( RDKit::ROMol *a_mol, int a_fragmentidx ){
-	mol = a_mol;
-	fragmentidx = a_fragmentidx;
-	broken_ringidx = -1;
-}
-
-int MILP::runSolver( std::vector<int> &output_bmax ){
+int MILP::runSolver( std::vector<int> &output_bmax, bool allow_lp_q, int max_free_pairs){
    //Uses lp_solve: based on demonstration code provided.
   unsigned int numunbroken;
   int broken, fragidx, origval;
@@ -41,68 +31,98 @@ int MILP::runSolver( std::vector<int> &output_bmax ){
   REAL *row = NULL;
   lprec *lp;
 
-  // Variables are: num additional electron pairs
-  // added per bond-> i.e. 0 = single, 1 = double, 2 = triple
+  // Variables are: num electron pairs
+  // added per bond-> i.e. 1 = single, 2 = double, 3 = triple,
+  // lone pair added per bond due to beginning atom,
+  // lone pair added per bond due to end atom (at most one total),
+  // place for charge due to H loss per atom (at most one total)
   int num_bonds = mol->getNumBonds();
   int num_atoms = mol->getNumAtoms();
-  Ncol = num_bonds;
-  lp = make_lp(0, num_bonds);
+  Ncol = num_bonds*3 + num_atoms;
+  lp = make_lp(0, Ncol);
   if(lp == NULL)
     ret = 1; /* couldn't construct a new model... */
 
   if(ret == 0) {
-    colno = (int *) malloc(num_bonds * sizeof(*colno));
-    row = (REAL *) malloc(num_bonds * sizeof(*row));
+    colno = (int *) malloc(Ncol * sizeof(*colno));
+    row = (REAL *) malloc(Ncol * sizeof(*row));
     if((colno == NULL) || (row == NULL))
       ret = 2;
   }
 
   //Bond Constraints
+  int min_single_bonds = 0;
   if(ret == 0) {
     set_add_rowmode(lp, TRUE);
 
-	//All bonds must be at most TRIPLE bonds ( <= 2 ) 
-	//except broken bonds ( <= 0 ) and ring bonds ( <= 1 )
+	//All bonds must be at most TRIPLE bonds ( <= 3 ) 
+	//except broken bonds ( <= 0 ) and ring bonds ( <= 2 )
 	for( i = 0; i < num_bonds && ret == 0; i++ ){
 		set_int(lp, i+1, TRUE); //sets variable to integer
 
 		RDKit::Bond *bond = mol->getBondWithIdx(i);
 		int limit = 0;	  //bonds that are broken or in the other fragment are limited to 0
-		
+		int end_lp_limit = 0, begin_lp_limit = 0;	//bonds for which there is no lone pair to donate (or broken, or in other fragment) are limited to 0
 		bond->getProp("Broken", broken);
-		bond->getBeginAtom()->getProp("FragIdx", fragidx);
+		RDKit::Atom *begin_atom = bond->getBeginAtom();
+		begin_atom->getProp("FragIdx", fragidx);
+		int min_limit = 0;
 		if( !broken && fragidx == fragmentidx ){
-			limit = 2;
+			limit = 3; min_limit = 1; min_single_bonds++;
 			bond->getProp("NumUnbrokenRings", numunbroken);
-			if( numunbroken > 0 ) limit = 1;
+			if( numunbroken > 0 ) limit = 2;
+			else{ 
+				begin_lp_limit = allow_lp_q && getAtomLPLimit(begin_atom);
+				end_lp_limit = allow_lp_q && getAtomLPLimit(bond->getEndAtom());
+			}
 		}
+		//Valence limit constraint
 		colno[0] = i + 1; //variable idx i.e. bond
 		row[0] = 1;		  //multiplier
+		colno[1] = num_bonds + i + 1; //variable idx i.e. begin lone pair bond
+		row[1] = 1;		  //multiplier
+		colno[2] = 2*num_bonds + i + 1; //variable idx i.e. end lone pair bond
+		row[2] = 1;		  //multiplier
 
-		if(!add_constraintex(lp, 1, row, colno, LE, limit))
+		if(!add_constraintex(lp, 3, row, colno, LE, limit)){
 		  ret = 3;
-	}
-
-	//Add atom valence constraints to neighbouring bonds
-	for( i = 0; i < num_atoms && ret == 0; i++ ){
-		RDKit::Atom *atom = mol->getAtomWithIdx(i);
-		atom->getProp("FragIdx", fragidx);
-		atom->getProp("OrigValence", origval);
-		if( fragidx != fragmentidx ) continue;
-		
-
-		RDKit::ROMol::OBOND_ITER_PAIR ip = mol->getAtomBonds( atom );
-		RDKit::ROMol::OEDGE_ITER it = ip.first;
-		int num_unbroken = 0, j = 0;
-		for( ; it != ip.second; ++it ){
-			RDKit::Bond *cbond =(*mol)[*it].get();
-			cbond->getProp("Broken", broken);
-			colno[j] = cbond->getIdx() + 1; //variable idx i.e. bond
-			row[j++] = 1;		  //multiplier
-			if( !broken ) num_unbroken++;
+		  break;
 		}
-		if(!add_constraintex(lp, j, row, colno, LE, origval - num_unbroken))
+		#ifdef __DEBUG_CONSTRAINTS__
+			printConstraint( 3, colno, false, limit );
+		#endif
+
+		//Minimum constraint (LP bond + standard bond is at least a single bond)
+		colno[0] = i + 1;
+		row[0] = 1;		  //multiplier	
+		if(!add_constraintex(lp, 1, row, colno, GE, min_limit)){
 		  ret = 3;
+		  break;
+		}
+		#ifdef __DEBUG_CONSTRAINTS__
+			printConstraint( 1, colno, true, min_limit );
+		#endif
+		//Lone pair constraint due to begin atom
+		colno[0] = num_bonds + i + 1;
+		row[0] = 1;		  //multiplier
+		if(!add_constraintex(lp, 1, row, colno, LE, begin_lp_limit)){
+		  ret = 3;
+		  break;
+		}
+		#ifdef __DEBUG_CONSTRAINTS__
+			printConstraint( 1, colno, false, begin_lp_limit );
+		#endif
+
+		//Lone pair constraint due to end atom
+		colno[0] = 2*num_bonds + i + 1;
+		row[0] = 1;		  //multiplier
+		if(!add_constraintex(lp, 1, row, colno, LE, end_lp_limit)){
+		  ret = 3;
+		  break;
+		}
+		#ifdef __DEBUG_CONSTRAINTS__
+			printConstraint( 1, colno, false, end_lp_limit );
+		#endif
 	}
 
 	//Add constraints for neighbouring ring bonds (can't have two double in a row)
@@ -112,7 +132,7 @@ int MILP::runSolver( std::vector<int> &output_bmax ){
 	for( int ringidx = 0; bit != brings.end() && ret == 0; ++bit, ringidx++ ){
 
 		if( ringidx == broken_ringidx ) continue;
-		row[0] = 1; row[1] = 1;
+		row[0] = 1; row[1] = 1; row[2] = 1; row[3] = 1;
 		
 		//Create a vector of flags indicating bonds included in the ring
 		std::vector<int> ring_bond_flags(num_bonds);
@@ -124,24 +144,115 @@ int MILP::runSolver( std::vector<int> &output_bmax ){
 		RDKit::Bond *bond = mol->getBondWithIdx(*(bit->begin())); //Starting Bond	
 		RDKit::Bond *start_bond = bond, *prev_bond = bond;
 		RDKit::Atom *atom = bond->getBeginAtom();
-		while( ret == 0 && (bond = getNextBondInRing(bond, atom, ring_bond_flags)) != start_bond ){
+		int first_flag = 1;
+		while( ret == 0 && (first_flag || prev_bond != start_bond) ){
+			bond = getNextBondInRing(bond, atom, ring_bond_flags);
 			colno[0] = prev_bond->getIdx() + 1;
 			colno[1] = bond->getIdx() + 1;
-			if(!add_constraintex(lp, 2, row, colno, LE, 1)) ret = 3;
+			colno[2] = prev_bond->getIdx() + 1 + num_bonds;
+			colno[3] = bond->getIdx() + 1 + num_bonds;
+			if(!add_constraintex(lp, 4, row, colno, LE, 3)) ret = 3;
 			atom = bond->getOtherAtom( atom );
 			prev_bond = bond;
+			first_flag = 0;
 		}
 	}
+
+	//Add atom valence constraints to neighbouring bonds
+	int numlp = 0;	std::vector<int> lp_indexes(num_atoms, -1);
+	for( i = 0; i < num_atoms && ret == 0; i++ ){
+		RDKit::Atom *atom = mol->getAtomWithIdx(i);
+		atom->getProp("FragIdx", fragidx);
+		atom->getProp("OrigValence", origval);
+		int ionic_q; atom->getProp("IonicFragmentCharge", ionic_q);
+		int has_lp; atom->getProp("HasLP", has_lp);
+		unsigned int num_ur; atom->getProp("NumUnbrokenRings", num_ur);		
+
+		//Charge due to H loss constraints
+		colno[0] = 3*num_bonds + i + 1;
+		row[0] = 1;
+		int hloss_allowed = (!has_lp) && (fragidx == fragmentidx) && (ionic_q == 0) && (num_ur == 0);
+		if(!add_constraintex(lp, 1, row, colno, LE, hloss_allowed))
+		  ret = 3;
+		#ifdef __DEBUG_CONSTRAINTS__
+			printConstraint( 1, colno, false, hloss_allowed);
+		#endif
+		if( ret != 0 ) break;
+
+		if( fragidx != fragmentidx ) continue;
+
+		//Base valence constraints
+		RDKit::ROMol::OBOND_ITER_PAIR ip = mol->getAtomBonds( atom );
+		RDKit::ROMol::OEDGE_ITER it = ip.first;
+		int j = 0; if( hloss_allowed ) j = 1;
+		for( ; it != ip.second; ++it ){
+			RDKit::Bond *cbond =(*mol)[*it].get();
+			int cbond_broken; cbond->getProp("Broken", cbond_broken);
+			if(cbond_broken) continue;
+
+			colno[j] = cbond->getIdx() + 1; //variable idx i.e. bond
+			row[j++] = 1;		  //multiplier
+			//For atoms that don't contribute the lone pairs, 
+			//ensure lone pair bonds are counted towards valence total
+			if( cbond->getBeginAtomIdx() != i ){
+				colno[j] = cbond->getIdx() + 1 + num_bonds;
+				row[j++] = 1;			
+			}
+			if( cbond->getEndAtomIdx() != i ){
+				colno[j] = cbond->getIdx() + 1 + 2*num_bonds;
+				row[j++] = 1;			
+			}			
+		}
+		if( j > 0 ){
+			int val_limit = origval;
+			if( atom->getDegree() > origval )  val_limit = atom->getDegree();
+			if(!add_constraintex(lp, j, row, colno, LE, val_limit))
+			  ret = 3;
+			#ifdef __DEBUG_CONSTRAINTS__
+				printConstraint( j, colno, false, val_limit );
+			#endif
+		}
+
+	}
+
+	//Total Lone Pair bond and H loss constraints - at most one of either used
+	if( ret == 0 ){
+		int j = 0;
+		for( i = num_bonds; i < 3*num_bonds + num_atoms; i++ ){
+			colno[j] = i + 1; //variable idx
+			row[j++] = 1;     //multiplier
+		}
+		if(!add_constraintex(lp, j, row, colno, LE, 1))
+			ret = 3;
+		#ifdef __DEBUG_CONSTRAINTS__
+			printConstraint( j, colno, false, 1 );
+		#endif
+
+	}
+
+	//Add the maximum constraint (no point finding a solution with more electrons than we have)
+	if( ret == 0 ){
+		for( int j = 0; j < Ncol; j++ ){
+			colno[j] = j+1; 
+			row[j] = 1;	
+		}
+		if(!add_constraintex(lp, Ncol, row, colno, LE, max_free_pairs+min_single_bonds))
+			ret = 3;
+		#ifdef __DEBUG_CONSTRAINTS__
+			printConstraint( Ncol, colno, false, max_free_pairs+min_single_bonds );
+		#endif
+	}
+
   }
 
   if(ret == 0) {
-	// set the objective function = sum bond electrons
+	// set the objective function = sum bond electrons + sum lone pairs used for bonding
 	set_add_rowmode(lp, FALSE);
-	for( int j = 0; j < num_bonds; j++ ){
+	for( int j = 0; j < Ncol; j++ ){
 		colno[j] = j+1; 
 		row[j] = 1;	
 	}
-	if(!set_obj_fnex(lp, num_bonds, row, colno))
+	if(!set_obj_fnex(lp, Ncol, row, colno))
 		ret = 4;
   }
 
@@ -155,20 +266,31 @@ int MILP::runSolver( std::vector<int> &output_bmax ){
   }
 
   //Extract Results
+  output_bmax.resize( Ncol );
   if(ret == 0) {
-	output_bmax.resize( Ncol );
 	get_variables(lp, row);
 	for( int j = 0; j < Ncol; j++) output_bmax[j] = (int)row[j];
-	output_max_e = (int)get_objective(lp);
+	int obj = get_objective(lp);
+	output_max_e = obj - min_single_bonds;
   }
+  else for( int j = 0; j < Ncol; j++) output_bmax[j] = 0;
+
+  //Combine the lone pair results
+  for( int j=0; j< num_bonds; j++ ) output_bmax[j + num_bonds] += output_bmax[j + 2*num_bonds];
+  //Condense the atom H loss charge position results to a single index (or -1 if none)
+  int hloss_idx[2] = {-1,-1};
+  for( int j=0; j < num_atoms; j++ ){ 
+	  if( output_bmax[j + 3*num_bonds] ) hloss_idx[fragmentidx] = j;
+  }
+  output_bmax.resize(2*num_bonds + 2);
+  output_bmax[2*num_bonds] = hloss_idx[0];
+  output_bmax[2*num_bonds + 1] =  hloss_idx[1];
 
   // Free allocated memory
   if(row != NULL) free(row);
   if(colno != NULL) free(colno);
   if(lp != NULL) delete_lp(lp);
   
-  //Return maximum non-single bond electron pairs that can 
-  //be allocated to this fragment.
   return output_max_e;
 }
 
@@ -184,4 +306,19 @@ RDKit::Bond *MILP::getNextBondInRing( RDKit::Bond *bond, RDKit::Atom *atom, std:
 			return atom->getOwningMol().getBondWithIdx(idx);
 	}
 	return NULL;	//Error@!
+}
+
+void MILP::printConstraint( int num_terms, int *colno, bool ge, int val  ){
+	if( !verbose) return;
+	for(int k=0; k <num_terms; k++ ){ std::cout << colno[k]; if(k !=num_terms-1) std::cout << "+"; }
+	if(ge) std::cout << " >= " << val << std::endl;
+	else  std::cout << " <= " << val << std::endl;
+
+} 
+
+int MILP::getAtomLPLimit(RDKit::Atom *atom){
+	int has_lp; atom->getProp("HasLP", has_lp);
+	int val; atom->getProp("OrigValence", val);
+	unsigned int num_unbroken; atom->getProp("NumUnbrokenRings", num_unbroken);
+	return( has_lp && (atom->getDegree() <= val) && (num_unbroken == 0) );
 }

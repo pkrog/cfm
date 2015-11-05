@@ -51,9 +51,75 @@ public:
 	void runTest();
 };
 
+class FeaturesTestRadicalFeatures : public Test {
+public:
+	FeaturesTestRadicalFeatures();
+	void runTest();
+};
+
+class FeaturesTestIonicFeatures : public Test {
+public:
+	FeaturesTestIonicFeatures();
+	void runTest();
+};
+
 class FeaturesTestRingFeatures : public Test {
 public:
 	FeaturesTestRingFeatures();
+	void runTest();
+};
+
+class FeaturesTestExtraRingFeatures : public Test {
+public:
+	FeaturesTestExtraRingFeatures();
+	void runTest();
+};
+
+class FeaturesTestFunctionalGroups : public Test {
+public:
+	FeaturesTestFunctionalGroups();
+	void runTest();
+};
+
+class FeaturesTestExtraFunctionalGroups : public Test {
+public:
+	FeaturesTestExtraFunctionalGroups();
+	void runTest();
+};
+
+class FeaturesTestFunctionalGroupsRootOnly : public Test {
+public:
+	FeaturesTestFunctionalGroupsRootOnly();
+	void runTest();
+};
+
+class FeaturesTestRootMMFFAtomType :  public Test {
+public:
+	FeaturesTestRootMMFFAtomType();
+	void runTest();
+};
+
+class FeaturesTestNeighbourMMFFAtomType :  public Test {
+public:
+	FeaturesTestNeighbourMMFFAtomType();
+	void runTest();
+};
+
+class FeaturesTestBrokenOrigBondType :  public Test {
+public:
+	FeaturesTestBrokenOrigBondType();
+	void runTest();
+};
+
+class FeaturesTestNeighbourOrigBondType : public Test {
+public:
+	FeaturesTestNeighbourOrigBondType();
+	void runTest();
+};
+
+class FeaturesTestRootAtom :  public Test {
+public:
+	FeaturesTestRootAtom();
 	void runTest();
 };
 

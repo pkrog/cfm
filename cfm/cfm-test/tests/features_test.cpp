@@ -14,6 +14,7 @@
 #include "MolData.h"
 
 #include <GraphMol/SmilesParse/SmilesParse.h>
+#include <GraphMol/SmilesParse/SmilesWrite.h>
 #include <GraphMol/RDKitBase.h>
 #include <RDGeneral/types.h>
 #include <boost/filesystem.hpp>
@@ -86,10 +87,10 @@ void FeaturesTestBreakAtomPair::runTest(){
 
 	//Non-Ring Break C-N
 	RDKit::Atom *null_atom = NULL;
-	romol_ptr_t ion( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
+	romol_ptr_t ion = createMolPtr("C");
 	initMolProps(ion);
 	RootedROMolPtr rtd_ion( ion, ion.get()->getAtomWithIdx(0), null_atom);
-	romol_ptr_t nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N")) );
+	romol_ptr_t nl =  createMolPtr("N");
 	initMolProps(nl);
 	RootedROMolPtr rtd_nl( nl, nl.get()->getAtomWithIdx(0), null_atom);
 
@@ -107,10 +108,10 @@ void FeaturesTestBreakAtomPair::runTest(){
 	delete fv;
 
 	//Non-Ring Break X-C
-	ion = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("B")) );
+	ion = createMolPtr("B");
 	initMolProps(ion);
 	rtd_ion = RootedROMolPtr( ion, ion.get()->getAtomWithIdx(0), null_atom );
-	nl = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
+	nl = createMolPtr("C");
 	initMolProps(nl);
 	rtd_nl = RootedROMolPtr( nl, nl.get()->getAtomWithIdx(0), null_atom );
 
@@ -128,7 +129,7 @@ void FeaturesTestBreakAtomPair::runTest(){
 	delete fv;
 
 	//Ring Break double C-N
-	ion = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("CC")));
+	ion = createMolPtr("CC");
 	initMolProps(ion);
 	rtd_ion = RootedROMolPtr( ion, ion.get()->getAtomWithIdx(0), ion.get()->getAtomWithIdx(1) );
 	nl = romol_ptr_t(RDKit::SmilesToMol("NN"));
@@ -150,10 +151,10 @@ void FeaturesTestBreakAtomPair::runTest(){
 	delete fv;
 
 	//Ring Break C-N, X-X
-	ion = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("CB")));
+	ion = createMolPtr("CB");
 	initMolProps(ion);
 	rtd_ion = RootedROMolPtr( ion, ion.get()->getAtomWithIdx(0), ion.get()->getAtomWithIdx(1) );
-	nl = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NB")));
+	nl = createMolPtr("NB");
 	initMolProps(nl);
 	rtd_nl = RootedROMolPtr( nl, nl.get()->getAtomWithIdx(0), nl.get()->getAtomWithIdx(1) );
 	nl.get()->setProp("IsRingBreak", 1);
@@ -191,8 +192,8 @@ void FeaturesTestRootPairs::runTest(){
 
 	//Non-ring "C-N,C-N,C-X"
 	RDKit::Atom *null_atom = NULL;
-	romol_ptr_t ion( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C(N)(B)N")) );
-	romol_ptr_t nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
+	romol_ptr_t ion = createMolPtr("C(N)(B)N");
+	romol_ptr_t nl = createMolPtr("C");
 	initMolProps(ion);
 	initMolProps(nl);
 	RootedROMolPtr rtd_ion( ion, ion.get()->getAtomWithIdx(0), null_atom );
@@ -216,7 +217,7 @@ void FeaturesTestRootPairs::runTest(){
 	delete fv;
 
 	//Non-ring "X-X,X-N"
-	ion = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("B(B)N")) );
+	ion = createMolPtr("B(B)N");
 	initMolProps(ion);
 	rtd_ion = RootedROMolPtr( ion, ion.get()->getAtomWithIdx(0), null_atom );
 	
@@ -237,7 +238,7 @@ void FeaturesTestRootPairs::runTest(){
 	delete fv;
 
 	//Ring "C-N,C-N,X-X,C-X,X-N"
-	ion = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C(N)(B)NNBB")) );
+	ion = createMolPtr("C(N)(B)NNBB");
 	initMolProps(ion);	
 	rtd_ion = RootedROMolPtr( ion, ion.get()->getAtomWithIdx(0), ion.get()->getAtomWithIdx(5) );
 	nl.get()->setProp("IsRingBreak", 1);
@@ -262,7 +263,7 @@ void FeaturesTestRootPairs::runTest(){
 	delete fv;
 
 	//Empty pairs (set feature indicating no pairs)
-	ion = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
+	ion = createMolPtr("C");
 	initMolProps(ion);	
 	rtd_ion = RootedROMolPtr( ion, ion.get()->getAtomWithIdx(0), null_atom );
 	nl.get()->setProp("IsRingBreak", 0);
@@ -297,8 +298,8 @@ void FeaturesTestRootTriples::runTest(){
 	FeatureCalculator *fc = new FeatureCalculator( fnames );
 
 	//Non-ring "C-C-N,C-C-N,C-X-C"
-	romol_ptr_t ion( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-	romol_ptr_t nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C(BC)C(N)N")) );
+	romol_ptr_t ion = createMolPtr("C");
+	romol_ptr_t nl = createMolPtr("C(BC)C(N)N");
 	initMolProps(ion);
 	initMolProps(nl);
 	RDKit::Atom *null_atom = NULL;
@@ -323,7 +324,7 @@ void FeaturesTestRootTriples::runTest(){
 	delete fv;
 
 	//Non-ring "N-X-X"
-	nl = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NBB")) );
+	nl = createMolPtr("NBB");
 	initMolProps(nl);	
 	rtd_nl = RootedROMolPtr(nl, nl.get()->getAtomWithIdx(0), null_atom );
 
@@ -341,8 +342,8 @@ void FeaturesTestRootTriples::runTest(){
 	delete fv;
 
 	//Ring "C-C-N,C-C-N,C-X-C,N-X-X"
-	ion = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-	nl = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C(BC)C(N)NBBN")) );
+	ion = createMolPtr("C");
+	nl = createMolPtr("C(BC)C(N)NBBN");
 	initMolProps(ion);
 	initMolProps(nl);	
 	rtd_nl = RootedROMolPtr(nl, nl.get()->getAtomWithIdx(0), nl.get()->getAtomWithIdx(8) );
@@ -367,7 +368,7 @@ void FeaturesTestRootTriples::runTest(){
 	delete fv;
 
 	//Empty triples (set feature indicating no pairs)
-	nl = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
+	nl = createMolPtr("C");
 	initMolProps(nl);
 	rtd_nl = RootedROMolPtr( nl, nl.get()->getAtomWithIdx(0), null_atom );
 	
@@ -400,11 +401,11 @@ void FeaturesTestGasteigerCharges::runTest(){
 	RDKit::Atom *null_atom = NULL;
 
 	//Non-ring (-0.33042488,-0.00652530)
-	romol_ptr_t ion( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
+	romol_ptr_t ion = createMolPtr("C");
 	initMolProps(ion);
 	ion.get()->getAtomWithIdx(0)->setProp<double>("OrigGasteigerCharge", -0.33042488 );
 	RootedROMolPtr rtd_ion( ion, ion.get()->getAtomWithIdx(0), null_atom );
-	romol_ptr_t nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
+	romol_ptr_t nl = createMolPtr("C");
 	initMolProps(nl);	
 	nl.get()->getAtomWithIdx(0)->setProp<double>("OrigGasteigerCharge", -0.00652530 );
 	RootedROMolPtr rtd_nl( nl, nl.get()->getAtomWithIdx(0), null_atom );
@@ -424,12 +425,12 @@ void FeaturesTestGasteigerCharges::runTest(){
 	delete fv;
 
 	//Ring Retain Order (-0.01,0.9), (0.05,-0.4)
-	ion = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("CC")) );
+	ion = createMolPtr("CC");
 	initMolProps(ion);	
 	ion.get()->getAtomWithIdx(0)->setProp<double>("OrigGasteigerCharge", -0.01 );
 	ion.get()->getAtomWithIdx(1)->setProp<double>("OrigGasteigerCharge", 0.05 );
 	rtd_ion = RootedROMolPtr( ion, ion.get()->getAtomWithIdx(0), ion.get()->getAtomWithIdx(1) );	
-	nl = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("CC")) );
+	nl = createMolPtr("CC");
 	initMolProps(nl);
 	nl.get()->getAtomWithIdx(0)->setProp<double>("OrigGasteigerCharge", 0.9 );
 	nl.get()->getAtomWithIdx(1)->setProp<double>("OrigGasteigerCharge", -0.4 );
@@ -471,12 +472,12 @@ void FeaturesTestHydrogenMovement::runTest(){
 	FeatureCalculator *fc = new FeatureCalculator( fnames );
 
 	//Positive within range
-	romol_ptr_t ion( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
+	romol_ptr_t ion = createMolPtr("C");
 	initMolProps(ion);
 	double h_movement = 3.00452;
 	ion.get()->getAtomWithIdx(0)->setProp<double>("OriginalMass", 16.0 - h_movement);
 	RootedROMolPtr rtd_ion( ion, ion.get()->getAtomWithIdx(0), null_atom );
-	romol_ptr_t nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
+	romol_ptr_t nl = createMolPtr("C");
 	initMolProps(nl);
 	RootedROMolPtr rtd_nl( nl, nl.get()->getAtomWithIdx(0), null_atom );
 
@@ -561,6 +562,205 @@ void FeaturesTestHydrogenMovement::runTest(){
 
 }
 
+FeaturesTestFunctionalGroups::FeaturesTestFunctionalGroups(){
+	description = "Test Functional Groups features";
+}
+
+void FeaturesTestFunctionalGroups::runTest(){
+	
+	bool pass = true;
+	std::vector<std::string> fnames;
+	fnames.push_back("IonFunctionalGroupFeatures");
+	fnames.push_back("NLFunctionalGroupFeatures");
+	FeatureCalculator *fc = new FeatureCalculator( fnames );
+	
+	FragmentGraphGenerator fgen(fc);
+	std::string smiles_or_inchi("CCCCC(O)=O");
+	FragmentTreeNode *node = fgen.createStartNode( smiles_or_inchi, POSITIVE_ESI_IONIZATION_MODE );
+	std::vector<Break> breaks;
+	node->generateBreaks(breaks, false);
+	node->applyBreak(breaks[2], 0);	//Break Bond 2
+	node->generateChildrenOfBreak(breaks[2]);
+
+	FragmentTreeNode *child = &(node->children[0]);
+	Transition tmp_t( -1, -1, child->nl, child->ion ); 
+	FeatureVector *fv = fc->computeFV( tmp_t.getIon(), tmp_t.getNeutralLoss() );
+	if( fv->getNumSetFeatures() != 9 ){
+		std::cout << "Unexpected number of non-zero features" << std::endl;
+		pass = false;	
+	}
+	else{
+		if( fv->getFeature(1) != 8 ||		//Ion: 7,9 and 86 are at the root atom
+			fv->getFeature(2) != 10 ||
+			fv->getFeature(3) != 87 ||
+			fv->getFeature(4) != 163 ||		//Ion: 0,10,87 and 114 are one away
+			fv->getFeature(5) != 173 ||
+			fv->getFeature(6) != 246 ||
+			fv->getFeature(7) != 270 ||
+			fv->getFeature(8) != 486 ){		//No functional group on NL side
+			std::cout << "Unexpected Functional Group features" << std::endl;
+			pass = false;
+		}
+	}
+
+	passed = pass;
+}
+
+FeaturesTestExtraFunctionalGroups::FeaturesTestExtraFunctionalGroups(){
+	description = "Test Extra Functional Groups features";
+}
+
+void FeaturesTestExtraFunctionalGroups::runTest(){
+	
+	bool pass = true;
+	std::vector<std::string> fnames;
+	fnames.push_back("IonExtraFunctionalGroupFeatures");
+	fnames.push_back("NLExtraFunctionalGroupFeatures");
+	FeatureCalculator *fc = new FeatureCalculator( fnames );
+	
+	FragmentGraphGenerator fgen(fc);
+	std::string smiles_or_inchi("C1CC1CC(C)(C)C");
+	FragmentTreeNode *node = fgen.createStartNode( smiles_or_inchi, POSITIVE_ESI_IONIZATION_MODE );
+	std::vector<Break> breaks;
+	node->generateBreaks(breaks, false);
+	node->applyBreak(breaks[0], 0);	//Break Bond 2
+	node->generateChildrenOfBreak(breaks[0]);
+
+	FragmentTreeNode *child = &(node->children[0]);
+	Transition tmp_t( -1, -1, child->nl, child->ion ); 
+	FeatureVector *fv = fc->computeFV( tmp_t.getIon(), tmp_t.getNeutralLoss() );
+	if( fv->getNumSetFeatures() != 6 ){
+		std::cout << "Unexpected number of non-zero features" << std::endl;
+		pass = false;	
+	}
+	else{
+		if( fv->getFeature(1) != 3 ||
+			fv->getFeature(2) != 15 ||
+			fv->getFeature(3) != 30 ||
+			fv->getFeature(4) != 35 ||		
+			fv->getFeature(5) != 45  ){		
+			std::cout << "Unexpected Extra Functional Group features" << std::endl;
+			pass = false;
+		}
+	}
+
+	passed = pass;
+}
+
+
+FeaturesTestFunctionalGroupsRootOnly::FeaturesTestFunctionalGroupsRootOnly(){
+	description = "Test Functional Groups root only features";
+}
+
+void FeaturesTestFunctionalGroupsRootOnly::runTest(){
+	
+	bool pass = true;
+	std::vector<std::string> fnames;
+	fnames.push_back("IonFunctionalGroupRootOnlyFeatures");
+	fnames.push_back("NLFunctionalGroupRootOnlyFeatures");
+	FeatureCalculator *fc = new FeatureCalculator( fnames );
+	
+	FragmentGraphGenerator fgen(fc);
+	std::string smiles_or_inchi("CCCCC(O)=O");
+	FragmentTreeNode *node = fgen.createStartNode( smiles_or_inchi, POSITIVE_ESI_IONIZATION_MODE );
+	std::vector<Break> breaks;
+	node->generateBreaks(breaks, false);
+	node->applyBreak(breaks[2], 0);	//Break Bond 2
+	node->generateChildrenOfBreak(breaks[2]);
+
+	FragmentTreeNode *child = &(node->children[0]);
+	Transition tmp_t( -1, -1, child->nl, child->ion ); 
+	FeatureVector *fv = fc->computeFV( tmp_t.getIon(), tmp_t.getNeutralLoss() );
+	if( fv->getNumSetFeatures() != 5 ){
+		std::cout << "Unexpected number of non-zero features" << std::endl;
+		pass = false;	
+	}
+	else{
+		if( fv->getFeature(1) != 8 ||		//Ion: 7,9 and 86 are at the root atom
+			fv->getFeature(2) != 10 ||
+			fv->getFeature(3) != 87 ||
+			fv->getFeature(4) != 324 ){		//No functional group on NL side
+			std::cout << "Unexpected Functional Group features" << std::endl;
+			pass = false;
+		}
+	}
+
+	passed = pass;
+}
+
+
+FeaturesTestRadicalFeatures::FeaturesTestRadicalFeatures(){
+	description = "Test Radical features";
+}
+
+void FeaturesTestRadicalFeatures::runTest(){
+	
+	bool pass = true;
+	std::vector<std::string> fnames;
+	fnames.push_back("RadicalFeatures");
+	FeatureCalculator *fc = new FeatureCalculator( fnames );
+
+	//Ion Radical, NL Non-radical (1)
+	romol_ptr_t ion = createMolPtr("CC[CH3+]");
+	romol_ptr_t nl = createMolPtr("CC(=O)O");
+	RootedROMolPtr rtd_ion( ion, ion.get()->getAtomWithIdx(0), ion.get()->getAtomWithIdx(2) );
+	RootedROMolPtr rtd_nl( nl, nl.get()->getAtomWithIdx(0), nl.get()->getAtomWithIdx(2) );
+
+	FeatureVector *fv = fc->computeFV(&rtd_ion, &rtd_nl);
+	if( fv->getNumSetFeatures() != 2 ){
+		std::cout << "Unexpected number of non-zero features" << std::endl;
+		pass = false;		
+	} 
+	else{
+		if( fv->getFeature(1) != 1 ){		
+			std::cout << "Unexpected features for ion radical specification " << std::endl;
+			pass = false;
+		}
+	}
+	delete fv;
+
+	//Ion Non-Radical, NL Radical (2)
+	ion = createMolPtr("CCC[CH4+]");
+	nl = createMolPtr("[CH]=C");
+	rtd_ion = RootedROMolPtr( ion, ion.get()->getAtomWithIdx(0), ion.get()->getAtomWithIdx(1) );
+	rtd_nl = RootedROMolPtr( nl, nl.get()->getAtomWithIdx(0), nl.get()->getAtomWithIdx(1) );
+
+	fv = fc->computeFV(&rtd_ion, &rtd_nl);
+	if( fv->getNumSetFeatures() != 2 ){
+		std::cout << "Unexpected number of non-zero features" << std::endl;
+		pass = false;		
+	} 
+	else{
+		if( fv->getFeature(1) != 2 ){		
+			std::cout << "Unexpected features for nl radical specification " << std::endl;
+			pass = false;
+		}
+	}
+	delete fv;
+
+	//Neither radical (3)
+	ion = createMolPtr("CCC[CH4+]");
+	nl = createMolPtr("CCC");
+	rtd_ion = RootedROMolPtr( ion, ion.get()->getAtomWithIdx(0), ion.get()->getAtomWithIdx(1) );
+	rtd_nl = RootedROMolPtr( nl, nl.get()->getAtomWithIdx(0), nl.get()->getAtomWithIdx(1) );
+
+	fv = fc->computeFV(&rtd_ion, &rtd_nl);
+	if( fv->getNumSetFeatures() != 2 ){
+		std::cout << "Unexpected number of non-zero features" << std::endl;
+		pass = false;		
+	} 
+	else{
+		if( fv->getFeature(1) != 3 ){		
+			std::cout << "Unexpected features for non-radical specification " << std::endl;
+			pass = false;
+		}
+	}
+	delete fv;
+	delete fc;
+	passed = pass;
+
+}
+
 FeaturesTestRingFeatures::FeaturesTestRingFeatures(){
 	description = "Test Ring features";
 }
@@ -573,17 +773,17 @@ void FeaturesTestRingFeatures::runTest(){
 	FeatureCalculator *fc = new FeatureCalculator( fnames );
 
 	//1,1,3,6
-	romol_ptr_t ion( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("CCC")) );
-	romol_ptr_t nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("CCC")) );
-	initMolProps(ion);
-	initMolProps(nl);
-	RootedROMolPtr rtd_ion( ion, ion.get()->getAtomWithIdx(0), ion.get()->getAtomWithIdx(2) );
-	nl.get()->setProp("IsRingBreak",1);
-	nl.get()->setProp("IsAromaticRingBreak",1);
-	nl.get()->setProp("IsAromaticDblRingBreak",1);
-	RootedROMolPtr rtd_nl( nl, nl.get()->getAtomWithIdx(0), nl.get()->getAtomWithIdx(2) );
+	FragmentGraphGenerator fgen(fc);
+	std::string smiles_or_inchi("c1ccc2ccc(CCC)cc2c1");
+	FragmentTreeNode *node = fgen.createStartNode( smiles_or_inchi, POSITIVE_ESI_IONIZATION_MODE );
+	std::vector<Break> breaks;
+	node->generateBreaks(breaks, false);
+	node->applyBreak(breaks[4], 0);	//Break Ring with two bonds at distance 3
+	node->generateChildrenOfBreak(breaks[4]);
 
-	FeatureVector *fv = fc->computeFV(&rtd_ion, &rtd_nl);
+	FragmentTreeNode *child = &(node->children[0]);
+	Transition tmp_t( -1, -1, child->nl, child->ion ); 
+	FeatureVector *fv = fc->computeFV( tmp_t.getIon(), tmp_t.getNeutralLoss() );
 	if( fv->getNumSetFeatures() != 5 ){
 		std::cout << "Unexpected number of non-zero features" << std::endl;
 		pass = false;		
@@ -596,25 +796,24 @@ void FeaturesTestRingFeatures::runTest(){
 	}
 	delete fv;
 
-	//0,0,4,9
-	ion = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("CCCC")) );
-	nl = romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("CCCCC")) );
-	initMolProps(ion);
-	initMolProps(nl);
-	rtd_ion = RootedROMolPtr( ion, ion.get()->getAtomWithIdx(0), ion.get()->getAtomWithIdx(3) );
-	nl.get()->setProp("IsRingBreak",1);
-	nl.get()->setProp("IsAromaticRingBreak",0);
-	nl.get()->setProp("IsAromaticDblRingBreak",0);
-	rtd_nl = RootedROMolPtr( nl, nl.get()->getAtomWithIdx(0), nl.get()->getAtomWithIdx(4) );
+	//0,0,3,7
+	std::string smiles_or_inchi2("C1CCCCCC1");
+	FragmentTreeNode *node2 = fgen.createStartNode( smiles_or_inchi2, POSITIVE_ESI_IONIZATION_MODE );
+	std::vector<Break> breaks2;
+	node2->generateBreaks(breaks2, false);
+	node2->applyBreak(breaks2[3], 0);	//Break Ring with two bonds at distance 3
+	node2->generateChildrenOfBreak(breaks2[3]);
 
-	fv = fc->computeFV(&rtd_ion, &rtd_nl);
+	child = &(node2->children[0]);
+	Transition tmp_t2( -1, -1, child->nl, child->ion ); 
+	fv = fc->computeFV( tmp_t2.getIon(), tmp_t2.getNeutralLoss() );
 	if( fv->getNumSetFeatures() != 4 ){
 		std::cout << "Unexpected number of non-zero features" << std::endl;
 		pass = false;		
 	} 
 	else{
-		if( fv->getFeature(1) != 1 || fv->getFeature(2) != 7 || fv->getFeature(3) != 12 ){		
-			std::cout << "Unexpected features for ring break 0,0,4,9 " << std::endl;
+		if( fv->getFeature(1) != 1 || fv->getFeature(2) != 6 || fv->getFeature(3) != 12 ){		
+			std::cout << "Unexpected features for ring break 0,0,3,7 " << std::endl;
 			pass = false;
 		}
 	}
@@ -624,6 +823,424 @@ void FeaturesTestRingFeatures::runTest(){
 
 }
 
+FeaturesTestExtraRingFeatures::FeaturesTestExtraRingFeatures(){
+	description = "Test Extra Ring features";
+}
+
+void FeaturesTestExtraRingFeatures::runTest(){
+	
+	bool pass = true;
+	std::vector<std::string> fnames;
+	fnames.push_back("ExtraRingFeatures");
+	FeatureCalculator *fc = new FeatureCalculator( fnames );
+
+	FragmentGraphGenerator fgen(fc);
+	std::string smiles_or_inchi("c1ccccc1-C2CCCCC2-CCC");
+	FragmentTreeNode *node = fgen.createStartNode( smiles_or_inchi, POSITIVE_ESI_IONIZATION_MODE );
+	std::vector<Break> breaks;
+	node->generateBreaks(breaks, false);
+
+	//Break single bond between two rings
+	node->applyBreak(breaks[0], 0);
+	node->generateChildrenOfBreak(breaks[0]);
+	FragmentTreeNode *child = &(node->children[0]);
+	Transition tmp_t( -1, -1, child->nl, child->ion ); 
+	FeatureVector *fv = fc->computeFV( tmp_t.getIon(), tmp_t.getNeutralLoss() );
+	if( fv->getNumSetFeatures() != 4 ){
+		std::cout << "Unexpected number of non-zero features" << std::endl;
+		pass = false;		
+	} 
+	else{
+		if( fv->getFeature(1) != 1 || fv->getFeature(2) != 2 || fv->getFeature(3) != 3 ){		
+			std::cout << "Unexpected extra ring features " << std::endl;
+			pass = false;
+		}
+	}
+	delete fv;
+	node->undoBreak(breaks[0], 0);
+	node->children = std::vector<FragmentTreeNode>();
+
+	//Break single bond between ring and non-ring
+	node->applyBreak(breaks[1], 0);	
+	node->generateChildrenOfBreak(breaks[1]);
+	child = &(node->children[0]);
+	Transition tmp_t2( -1, -1, child->nl, child->ion ); 
+	fv = fc->computeFV( tmp_t2.getIon(), tmp_t2.getNeutralLoss() );
+	if( fv->getNumSetFeatures() != 3 ){
+		std::cout << "Unexpected number of non-zero features" << std::endl;
+		pass = false;		
+	} 
+	else{
+		if( fv->getFeature(1) != 1 || fv->getFeature(2) != 3 ){		
+			std::cout << "Unexpected extra ring features " << std::endl;
+			pass = false;
+		}
+	}
+	delete fv;
+	node->undoBreak(breaks[1], 0);
+	node->children = std::vector<FragmentTreeNode>();
+
+	//Break Ring (no features set)
+	node->applyBreak(breaks[5], 0);	
+	node->generateChildrenOfBreak(breaks[5]);
+	child = &(node->children[0]);
+	Transition tmp_t3( -1, -1, child->nl, child->ion ); 
+	fv = fc->computeFV( tmp_t3.getIon(), tmp_t3.getNeutralLoss() );
+	if( fv->getNumSetFeatures() != 1 ){
+		std::cout << "Unexpected number of non-zero features" << std::endl;
+		pass = false;		
+	} 
+	delete fv;
+
+	passed = pass;
+}
+
+
+FeaturesTestRootMMFFAtomType::FeaturesTestRootMMFFAtomType(){
+	description = "Test root MMFF Atom Type features";
+}
+
+void FeaturesTestRootMMFFAtomType::runTest(){
+	
+	bool pass = true;
+	std::vector<std::string> fnames;
+	fnames.push_back("IonRootMMFFAtomType");
+	fnames.push_back("NLRootMMFFAtomType");
+	FeatureCalculator *fc = new FeatureCalculator( fnames );
+	
+	FragmentGraphGenerator fgen(fc);
+	std::string smiles_or_inchi("CCCCC(O)=O");
+	FragmentTreeNode *node = fgen.createStartNode( smiles_or_inchi, POSITIVE_ESI_IONIZATION_MODE );
+	std::vector<Break> breaks;
+	node->generateBreaks(breaks, false);
+	node->applyBreak(breaks[4], 0);	//Break Bond 4
+	node->generateChildrenOfBreak(breaks[4]);
+
+	FragmentTreeNode *child = &(node->children[0]);
+	Transition tmp_t( -1, -1, child->nl, child->ion ); 
+	FeatureVector *fv = fc->computeFV( tmp_t.getIon(), tmp_t.getNeutralLoss() );
+	if( fv->getNumSetFeatures() != 3 ){
+		std::cout << "Unexpected number of non-zero features" << std::endl;
+		pass = false;	
+	}
+	else{
+		if( fv->getFeature(1) != 6 || fv->getFeature(2) != 103 ){		
+			std::cout << "Unexpected MMFF atom types: expecting 6,103" << std::endl;
+			pass = false;
+		}
+	}
+
+	passed = pass;
+}
+
+FeaturesTestNeighbourMMFFAtomType::FeaturesTestNeighbourMMFFAtomType(){
+	description = "Test neighbour MMFF Atom Type features";
+}
+
+void FeaturesTestNeighbourMMFFAtomType::runTest(){
+	
+	bool pass = true;
+	std::vector<std::string> fnames;
+	fnames.push_back("IonNeighbourMMFFAtomType");
+	fnames.push_back("NLNeighbourMMFFAtomType");
+	FeatureCalculator *fc = new FeatureCalculator( fnames );
+	
+	FragmentGraphGenerator fgen(fc);
+	std::string smiles_or_inchi("CCCCC(O)=O");
+	FragmentTreeNode *node = fgen.createStartNode( smiles_or_inchi, POSITIVE_ESI_IONIZATION_MODE );
+	std::vector<Break> breaks;
+	node->generateBreaks(breaks, false);
+	node->applyBreak(breaks[4], 0);	//Break Bond 4
+	node->generateChildrenOfBreak(breaks[4]);
+
+	FragmentTreeNode *child = &(node->children[0]);
+	Transition tmp_t( -1, -1, child->nl, child->ion ); 
+	FeatureVector *fv = fc->computeFV( tmp_t.getIon(), tmp_t.getNeutralLoss() );
+	if( fv->getNumSetFeatures() != 4 ){
+		std::cout << "Unexpected number of non-zero features" << std::endl;
+		pass = false;	
+	}
+	else{
+		if( fv->getFeature(1) != 101 || fv->getFeature(2) != 102 || fv->getFeature(3) != 108  ){		
+			std::cout << "Unexpected MMFF atom types: expecting 101, 102, 108" << std::endl;
+			pass = false;
+		}
+	}
+
+	passed = pass;
+}
+
+FeaturesTestBrokenOrigBondType::FeaturesTestBrokenOrigBondType(){
+	description = "Test orig broken bond type features";
+}
+
+void FeaturesTestBrokenOrigBondType::runTest(){
+	
+	bool pass = true;
+	std::vector<std::string> fnames;
+	fnames.push_back("BrokenOrigBondType");
+	FeatureCalculator *fc = new FeatureCalculator( fnames );
+	
+	FragmentGraphGenerator fgen(fc);
+	std::string smiles_or_inchi("[Na+].C#CCCC(=O)CC=CC=CC=CCCc1ccccc1");
+	FragmentTreeNode *node = fgen.createStartNode( smiles_or_inchi, POSITIVE_ESI_IONIZATION_MODE );
+	std::vector<Break> breaks;
+	node->generateBreaks(breaks, true);
+	
+	typedef std::pair<int, int> bond_test_spec_t;	//Break_idx, Expected Bond Type
+	std::vector<bond_test_spec_t> test_cases;
+	test_cases.push_back( bond_test_spec_t(0, 6) );	//IONIC
+	test_cases.push_back( bond_test_spec_t(31, 7) );	//H ONLY
+	test_cases.push_back( bond_test_spec_t(1, 3) );	//TRIPLE
+	test_cases.push_back( bond_test_spec_t(2, 1) );	//SINGLE
+	test_cases.push_back( bond_test_spec_t(5, 2) );	//DOUBLE
+	test_cases.push_back( bond_test_spec_t(8, 5) );	//CONJUGATED
+	test_cases.push_back( bond_test_spec_t(19, 4) );//AROMATIC
+	
+	std::vector<bond_test_spec_t>::iterator testit = test_cases.begin();
+	for( ; testit != test_cases.end(); ++testit ){
+	
+		Break *brk = &breaks[testit->first];
+		node->applyBreak(*brk, 0);	//Break specified bond
+		node->generateChildrenOfBreak(*brk);
+
+		FragmentTreeNode *child = &(node->children[0]);
+		Transition tmp_t( -1, -1, child->nl, child->ion ); 
+		FeatureVector *fv = fc->computeFV( tmp_t.getIon(), tmp_t.getNeutralLoss() );
+		if( fv->getNumSetFeatures() != 2 ){
+			std::cout << "Unexpected number of non-zero features" << std::endl;
+			pass = false;	
+		}
+		else{
+			if( fv->getFeature(1) != testit->second ){		
+				std::cout << "Unexpected broken bond type: expecting " << testit->second << " but found " << fv->getFeature(1) << std::endl;
+				pass = false;
+			}
+		}
+		node->children = std::vector<FragmentTreeNode>();
+	}
+
+	passed = pass;
+}
+
+FeaturesTestNeighbourOrigBondType::FeaturesTestNeighbourOrigBondType(){
+	description = "Test neighbour orig bond type features";
+}
+
+void FeaturesTestNeighbourOrigBondType::runTest(){
+	
+	bool pass = true;
+	std::vector<std::string> fnames;
+	fnames.push_back("NeighbourOrigBondTypes");
+	FeatureCalculator *fc = new FeatureCalculator( fnames );
+	
+	FragmentGraphGenerator fgen(fc);
+	std::string smiles_or_inchi("CC(c1ccccc1)=CC(C)C#C");
+	FragmentTreeNode *node = fgen.createStartNode( smiles_or_inchi, POSITIVE_ESI_IONIZATION_MODE );
+	std::vector<Break> breaks;
+	node->generateBreaks(breaks, true);
+	
+	typedef std::pair<int, std::vector<int> > bond_test_spec_t;	//Break_idx, Expected FV
+	std::vector<bond_test_spec_t> test_cases;
+	int exp_fv1[] = { 6, 7 }; //Conjugated on ion side, no bonds on nl side
+	test_cases.push_back( bond_test_spec_t(0, std::vector<int>( exp_fv1, exp_fv1+2 )) );	
+	int exp_fv2[] = { 5, 8, 12 };	//Aromatic on ion side, single and conjugated on nl side
+	test_cases.push_back( bond_test_spec_t(1, std::vector<int>( exp_fv2, exp_fv2+3 )) );	
+	int exp_fv3[] = { 4, 8 };	//Triple on ion side, single on nl side
+	test_cases.push_back( bond_test_spec_t(5, std::vector<int>( exp_fv3, exp_fv3+2 )) );	
+
+	std::vector<bond_test_spec_t>::iterator testit = test_cases.begin();
+	for( ; testit != test_cases.end(); ++testit ){
+	
+		Break *brk = &breaks[testit->first];
+		node->applyBreak(*brk, 0);	//Break specified bond
+		node->generateChildrenOfBreak(*brk);
+
+		FragmentTreeNode *child = &(node->children[0]);	//Take first child of break
+		Transition tmp_t( -1, -1, child->nl, child->ion ); 
+		FeatureVector *fv = fc->computeFV( tmp_t.getIon(), tmp_t.getNeutralLoss() );
+		if( fv->getNumSetFeatures() != testit->second.size()+1 ){
+			std::cout << "Unexpected number of non-zero features:" << fv->getNumSetFeatures() << std::endl;
+			pass = false;	
+		}
+		else{
+			std::vector<int>::iterator it = testit->second.begin();
+			for( int idx = 1; it != testit->second.end(); ++it, idx++ ){
+				if( fv->getFeature(idx) != *it ){		
+					std::cout << "Unexpected feature in neighbour bond type: expecting " << *it << " but found " << fv->getFeature(idx) << std::endl;
+					pass = false;
+				}
+			}
+		}
+		node->children = std::vector<FragmentTreeNode>();
+		node->undoBreak(*brk,0);
+	}
+
+	passed = pass;
+}
+
+FeaturesTestRootAtom::FeaturesTestRootAtom(){
+	description = "Test root atom features";
+}
+
+void FeaturesTestRootAtom::runTest(){
+	
+	bool pass = true;
+	std::vector<std::string> fnames;
+	fnames.push_back("IonRootAtom");
+	fnames.push_back("NLRootAtom");
+	FeatureCalculator *fc = new FeatureCalculator( fnames );
+	
+	FragmentGraphGenerator fgen(fc);
+	std::string smiles_or_inchi("[Br]C([Cl])(F)N(I)OPS[Se][Si]([Na])CCCCCc1ccccc1");
+	FragmentTreeNode *node = fgen.createStartNode( smiles_or_inchi, POSITIVE_ESI_IONIZATION_MODE );
+	std::vector<Break> breaks;
+	node->generateBreaks(breaks, true);
+	
+	typedef std::pair<int, int> atom_pair_t;
+	typedef std::pair<int, atom_pair_t> atom_test_spec_t;	//Break_idx, Expected Atom feature idxs
+	std::vector<atom_test_spec_t> test_cases;
+	test_cases.push_back( atom_test_spec_t(breaks.size()-1, atom_pair_t(1,11)) );	//C-H
+	test_cases.push_back( atom_test_spec_t(0, atom_pair_t(1,0)) );		//C-Br
+	test_cases.push_back( atom_test_spec_t(1, atom_pair_t(2,1)) );		//C-Cl
+	test_cases.push_back( atom_test_spec_t(2, atom_pair_t(3,1)) );		//C-F
+	test_cases.push_back( atom_test_spec_t(3, atom_pair_t(5,1)) );		//C-N
+	test_cases.push_back( atom_test_spec_t(4, atom_pair_t(4,5)) );		//N-I
+	test_cases.push_back( atom_test_spec_t(5, atom_pair_t(6,5)) );		//N-O
+	test_cases.push_back( atom_test_spec_t(6, atom_pair_t(7,6)) );	//O-P
+	test_cases.push_back( atom_test_spec_t(7, atom_pair_t(8,7)) );	//P-S
+	test_cases.push_back( atom_test_spec_t(8, atom_pair_t(9,8)) );	//S-Se
+	test_cases.push_back( atom_test_spec_t(9, atom_pair_t(10,9)) );	//Se-Si
+	test_cases.push_back( atom_test_spec_t(10, atom_pair_t(12,10)) );	//Si-Na
+	test_cases.push_back( atom_test_spec_t(19, atom_pair_t(1,1)) );	//Ring c-c c-c
+	
+	std::vector<atom_test_spec_t>::iterator testit = test_cases.begin();
+	for( ; testit != test_cases.end(); ++testit ){
+	
+		Break *brk = &breaks[testit->first];
+		node->applyBreak(*brk, 0);	//Break specified bond
+		node->generateChildrenOfBreak(*brk);
+
+		//if(brk->getBondIdx() >= 0 ){
+		//	std::cout << brk->getBondIdx() << ": " << node->ion.get()->getBondWithIdx(brk->getBondIdx())->getBeginAtom()->getSymbol();
+		//	std::cout << "-" << node->ion.get()->getBondWithIdx(brk->getBondIdx())->getEndAtom()->getSymbol() << std::endl;
+		//}
+
+		FragmentTreeNode *child = &(node->children[0]);
+		Transition tmp_t( -1, -1, child->nl, child->ion ); 
+		FeatureVector *fv = fc->computeFV( tmp_t.getIon(), tmp_t.getNeutralLoss() );
+		//std::cout << *(tmp_t.getNLSmiles()) << std::endl;
+		if( fv->getNumSetFeatures() != 3 ){
+			std::cout << "Unexpected number of non-zero features" << std::endl;
+			pass = false;	
+		}
+		else{
+			if( fv->getFeature(1) != testit->second.first + 1  ){				//Ion
+				std::cout << "Unexpected Ion Root Atom Feature: expecting " << testit->second.first + 1 << " but found " << fv->getFeature(1) << std::endl;
+				pass = false;
+			}
+			if( fv->getFeature(2) != (testit->second.second + 13 + 1)){	//NL
+				std::cout << "Unexpected NL Root Atom Feature: expecting " << (testit->second.second + 13 + 1)<< " but found " << fv->getFeature(2) << std::endl;
+				pass = false;			
+			}
+		}
+		node->children = std::vector<FragmentTreeNode>();
+		node->undoBreak(*brk, 0);
+	}
+
+	passed = pass;
+}
+
+FeaturesTestIonicFeatures::FeaturesTestIonicFeatures(){
+	description = "Test ionic fragment features";
+}
+
+class IonicFeatureTestCase {
+public:
+	IonicFeatureTestCase(int a_break_idx, int a_ionic_idx, int a_child_idx, bool a_rebreak_child, std::vector<int> &a_expected_output) : 
+	  break_idx( a_break_idx), ionic_idx( a_ionic_idx ), child_idx( a_child_idx ), expected_output( a_expected_output ), rebreak_child(a_rebreak_child) {};
+	int break_idx;
+	int ionic_idx;
+	int child_idx;
+	bool rebreak_child;
+	std::vector<int> expected_output;
+};
+
+void FeaturesTestIonicFeatures::runTest(){
+	
+	bool pass = true;
+	std::vector<std::string> fnames;
+	fnames.push_back("IonicFeatures");
+	FeatureCalculator *fc = new FeatureCalculator( fnames );
+	
+	FragmentGraphGenerator fgen(fc);
+	std::string smiles_or_inchi("[Na+].[Cl-].CC=CC");
+	FragmentTreeNode *node = fgen.createStartNode( smiles_or_inchi, POSITIVE_ESI_IONIZATION_MODE );
+	std::vector<Break> breaks;
+	node->generateBreaks(breaks, true);
+	
+	std::vector<IonicFeatureTestCase> test_cases;
+
+	//Tests case with Na+ on ion side, Cl- on NL side
+	std::vector<int> exp_result_t1; 
+	exp_result_t1.push_back(2); exp_result_t1.push_back(3);
+	test_cases.push_back( IonicFeatureTestCase(0,0,0,false,exp_result_t1) );
+
+	//Tests case with Na+ and Cl- on NL side
+	std::vector<int> exp_result_t2; 
+	exp_result_t2.push_back(1); exp_result_t2.push_back(3);
+	test_cases.push_back( IonicFeatureTestCase(0,1,0,false,exp_result_t2) );
+
+	//Tests case with Na+ and Cl- on Ion side
+	std::vector<int> exp_result_t3; 
+	exp_result_t3.push_back(2); exp_result_t3.push_back(4);
+	test_cases.push_back( IonicFeatureTestCase(2,0,0,false,exp_result_t3) );
+
+	//Tests case with no ionic fragments (need to re-break a child from above)
+	std::vector<int> exp_result_t4; 
+	exp_result_t4.push_back(5);
+	test_cases.push_back( IonicFeatureTestCase(0,1,0,true,exp_result_t4) );
+	
+	std::vector<IonicFeatureTestCase>::iterator testit = test_cases.begin();
+	for( ; testit != test_cases.end(); ++testit ){
+	
+		Break *brk = &breaks[ testit->break_idx];
+
+		node->applyBreak(*brk, testit->ionic_idx );	//Break specified bond
+		node->generateChildrenOfBreak(*brk);
+		FragmentTreeNode *child = &(node->children[testit->child_idx]);
+
+		if( testit->rebreak_child ){
+			std::vector<Break> child_breaks;
+			child->generateBreaks(child_breaks, true);
+			child->applyBreak(child_breaks[0], 0 );
+			child->generateChildrenOfBreak(child_breaks[0]);
+			child = &(child->children[0]);
+		}
+
+		Transition tmp_t( -1, -1, child->nl, child->ion ); 
+		FeatureVector *fv = fc->computeFV( tmp_t.getIon(), tmp_t.getNeutralLoss() );
+		
+		if( fv->getNumSetFeatures() != testit->expected_output.size()+1 ){
+			std::cout << "Unexpected number of non-zero features. Expected " << testit->expected_output.size()+1 << " but found " <<  fv->getNumSetFeatures() << std::endl;
+			pass = false;	
+		}
+		else{
+			std::vector<int>::iterator it = testit->expected_output.begin();
+			for( int idx = 1; it != testit->expected_output.end(); ++it, idx++ ){
+				if( fv->getFeature(idx) != *it ){	
+					std::cout << "Unexpected Ionic Feature at idx " << idx << ": expecting " << *it << " but found " << fv->getFeature(idx) << std::endl;
+					pass = false;
+				}
+			}
+		}
+
+		node->children = std::vector<FragmentTreeNode>();
+		node->undoBreak(*brk, testit->ionic_idx );
+	}
+
+	passed = pass;
+}
 
 FeaturesTestQuadraticFeatures::FeaturesTestQuadraticFeatures(){
 	description = "Test quadratic features";
@@ -639,13 +1256,13 @@ void FeaturesTestQuadraticFeatures::runTest(){
 	FeatureCalculator *fc = new FeatureCalculator( fnames );	
 
 	//Simple initial vector with 3 bits set (indexes: 0,3,80 )
-	romol_ptr_t ion( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
+	romol_ptr_t ion= createMolPtr("C");
 	initMolProps(ion);	
 	RDKit::Atom *null_atom = NULL;
 	RootedROMolPtr rtd_ion( ion, ion.get()->getAtomWithIdx(0), null_atom );
 	double h_movement = 3.00452;
 	ion.get()->getAtomWithIdx(0)->setProp<double>("OriginalMass", 16.0 - h_movement);
-	romol_ptr_t nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N")) );
+	romol_ptr_t nl = createMolPtr("N");
 	initMolProps(nl);	
 	RootedROMolPtr rtd_nl( nl, nl.get()->getAtomWithIdx(0), null_atom );
 	nl.get()->setProp("IsRingBreak",0);
@@ -690,20 +1307,19 @@ void FeaturesTestLength::runTest(){
 	bool pass = true;
 	
 	//Create the feature calculator
-	const std::vector<std::string> names = FeatureCalculator::getValidFeatureNames();
+	std::vector<std::string> names = FeatureCalculator::getValidFeatureNames();
 
 	//Create some aribitrary input data
-	romol_ptr_t ion( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-	initMolProps(ion);		
-	RDKit::Atom *null_atom = NULL;
-	RootedROMolPtr rtd_ion( ion, ion.get()->getAtomWithIdx(0), null_atom );
-	ion.get()->getAtomWithIdx(0)->setProp<double>("OriginalMass", 15.0);
-	ion.get()->getAtomWithIdx(0)->setProp<double>("OrigGasteigerCharge", 1.0);
-	romol_ptr_t nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("N")) );
-	initMolProps(nl);
-	RootedROMolPtr rtd_nl( nl, nl.get()->getAtomWithIdx(0), null_atom );
-	nl.get()->getAtomWithIdx(0)->setProp<double>("OrigGasteigerCharge",-1.0);
-	nl.get()->setProp("IsRingBreak",0);
+	FeatureCalculator full_fc( names );
+	FragmentGraphGenerator fgen(&full_fc);
+	std::string smiles_or_inchi("CCCCC(O)=O");
+	FragmentTreeNode *node = fgen.createStartNode( smiles_or_inchi, POSITIVE_ESI_IONIZATION_MODE );
+	std::vector<Break> breaks;
+	node->generateBreaks(breaks, false);
+	node->applyBreak(breaks[2], 0);	//Break Bond 2
+	node->generateChildrenOfBreak(breaks[2]);
+	FragmentTreeNode *child = &(node->children[0]);
+	Transition tmp_t( -1, -1, child->nl, child->ion ); 
 
 	//Check all feature lengths
 	std::vector<std::string>::const_iterator it = names.begin();
@@ -714,7 +1330,7 @@ void FeaturesTestLength::runTest(){
 		FeatureCalculator fc( feature_list );
 
 		//Compute the feature vector
-		FeatureVector *fv = fc.computeFV( &rtd_ion, &rtd_nl );
+		FeatureVector *fv = fc.computeFV( tmp_t.getIon(), tmp_t.getNeutralLoss() );
 
 		//Check the length
 		if( fv->getTotalLength() != fc.getNumFeatures() ){ 
@@ -742,10 +1358,12 @@ void FeaturesTestMetlinExample::runTest(){
 
 	//Ingegration Test - compute the fragment tree and transitions
 	std::string id = "Metlin_21361";
-	MolData mol( id, smiles_Metlin_21361, 0 );
-	mol.setIonizationMode(false);
-	mol.computeFragmentGraph(1);
-	mol.computeFeatureVectors( &fc );
+	config_t cfg; initDefaultConfig(cfg);
+	cfg.fg_depth = 1; cfg.include_h_losses = true; 
+	MolData mol( id, smiles_Metlin_21361, 0, &cfg );
+
+	mol.computeFragmentGraph(&fc);
+	mol.computeFeatureVectors(&fc);
 
 	//Transition 0: Check that the features are as expected
 	const FeatureVector *fv = mol.getFeatureVectorForIdx(0);

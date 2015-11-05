@@ -29,7 +29,7 @@ double getMassTol( double abs_tol, double ppm_tol, double mass ){
 	return mass_tol;
 }
 
-double getMonoIsotopicMass( romol_ptr_t mol, bool addHPlus, bool subtractHPplus){
+double getMonoIsotopicMass( const romol_ptr_t mol ){
 
 	RDKit::PeriodicTable *pt = RDKit::PeriodicTable::getTable();
 	double mass = 0.0;
@@ -40,8 +40,12 @@ double getMonoIsotopicMass( romol_ptr_t mol, bool addHPlus, bool subtractHPplus)
 		mass += pt->getMostCommonIsotopeMass(symbol);
 		mass += atom->getTotalNumHs()*pt->getMostCommonIsotopeMass("H");
 	}
-	if(addHPlus) mass += pt->getMostCommonIsotopeMass("H");
-	if(subtractHPplus) mass -= pt->getMostCommonIsotopeMass("H");
+	
+	//Adjust the mass by one electron according to the charge
+	int charge = RDKit::MolOps::getFormalCharge( *mol.get() );
+	if( charge == 1 ) mass -= MASS_ELECTRON;
+	if( charge == -1 ) mass += MASS_ELECTRON;
+
 	return mass;
 }
 
@@ -56,6 +60,42 @@ RDKit::Atom *getLabeledAtom( romol_ptr_t mol, const char *label ){
 	if( root ) return *ai;
 	else return NULL;
 }
+
+int moleculeHasSingleRadical( const RDKit::ROMol *romol ){
+
+	int num_radicals = 0;
+	for(RDKit::ROMol::ConstAtomIterator ait =romol->beginAtoms(); ait!=romol->endAtoms(); ++ait){
+        int ionic_frag_q; (*ait)->getProp( "IonicFragmentCharge", ionic_frag_q );
+		if( ionic_frag_q != 0 ) continue;	//Don't include radicals on ionic fragments
+		num_radicals += (*ait)->getNumRadicalElectrons();
+    }
+	return ( num_radicals == 1 );
+
+}
+
+int addIonicChargeLabels( const RDKit::ROMol *romol ){
+	
+	std::vector<int> mapping;
+	int num_frags = RDKit::MolOps::getMolFrags( *romol, mapping );
+	
+	RDKit::ROMol::ConstAtomIterator ai;
+	int num_ionic = 0;
+	for( ai = romol->beginAtoms(); ai != romol->endAtoms(); ++ai ){ 
+		(*ai)->setProp( "IonicFragmentCharge", 0 );
+		if( num_frags > 1 && (*ai)->getDegree() == 0 && (*ai)->getFormalCharge() != 0 ){
+			(*ai)->setProp( "IonicFragmentCharge", (*ai)->getFormalCharge() );
+			num_ionic++;
+		}
+	}
+	return num_ionic;
+}
+
+void alterNumHs( RDKit::Atom *atom, int H_diff ){
+	int nHs = atom->getTotalNumHs();
+	atom->setNoImplicit(true);
+	atom->setNumExplicitHs( nHs + H_diff );	
+}
+
 romol_ptr_t createMolPtr( const char* smiles_or_inchi ){
 	RDKit::RWMol *rwmol;
 	if( std::string(smiles_or_inchi).substr(0,6) == "InChI=" ){
@@ -64,5 +104,6 @@ romol_ptr_t createMolPtr( const char* smiles_or_inchi ){
 	}else
 		rwmol = RDKit::SmilesToMol( smiles_or_inchi );
 	RDKit::ROMol *mol = static_cast<RDKit::ROMol *>(rwmol);
+	addIonicChargeLabels( mol ); 
 	return romol_ptr_t( mol );
 }

@@ -59,6 +59,7 @@ public:
 	iterator begin(){ if( !normalized ) normalize(); return message.begin(); }
 	iterator end(){ return message.end(); }
 	unsigned int size(){ return message.size(); }
+	void print();
 
 private:
 	double log_sum;

@@ -43,10 +43,11 @@ int main(int argc, char *argv[])
 	if (argc < 3 || argc > 8 )
 	{
 		std::cout << std::endl << std::endl;
-		std::cout << std::endl << "Usage: cfm-annotate.exe <smiles_or_inchi> <spectrum_file> <ppm_mass_tol> <abs_mass_tol> <param_filename> <config_filename> <output_filename>" << std::endl << std::endl << std::endl;
+		std::cout << std::endl << "Usage: cfm-annotate.exe <smiles_or_inchi> <spectrum_file> <id> <ppm_mass_tol> <abs_mass_tol> <param_filename> <config_filename> <output_filename>" << std::endl << std::endl << std::endl;
 		std::cout << std::endl << "smiles_or_inchi: " << std::endl << "The smiles or Inchi string for the input molecule" << std::endl;  
 		std::cout << std::endl << "spectrum_file:" << std::endl << "The filename where the input spectra can be found as a list of peaks 'mass intensity' delimited by lines, with either 'low','med' and 'high' lines beginning spectra of different energy levels, or 'energy0', 'energy1', etc. ";
 		std::cout << "e.g." << std::endl << "energy0" << std::endl << "65.02 40.0" << std::endl << "86.11 60.0" << std::endl << "energy1" << std::endl << "65.02 100.0 ... etc" << std::endl;
+		std::cout << std::endl << "id:" << std::endl << "An identifier for the target molecule (Used to retrieve input spectrum from msp (if used). Otherwise not used but printed to output, in case of multiple concatenated results)" << std::endl;
 		std::cout << std::endl << "ppm_mass_tol (opt):" << std::endl << "The mass tolerance in ppm to use when matching peaks - will use higher resulting tolerance of ppm and abs (if not given defaults to value in the config file, or 10ppm if not specified there)" << std::endl;
 		std::cout << std::endl << "abs_mass_tol (opt):" << std::endl << "The mass tolerance in abs Da to use when matching peaks - will use higher resulting tolerance of ppm and abs ( if not given defaults to value in the config file, 0.01Da if not specified there)" << std::endl;
 		std::cout << std::endl << "param_filename (opt):" << std::endl << "The filename where the parameters of a trained cfm model can be found (if not given or set to 'none', assumes no parameters set, so all breaks equally likely)" << std::endl;
@@ -57,34 +58,56 @@ int main(int argc, char *argv[])
 
 	std::string smiles_or_inchi = argv[1];
 	std::string spectrum_file = argv[2];
-	if( argc > 3 ) ppm_mass_tol = atof(argv[3]);
-	if( argc > 4 ) abs_mass_tol = atof(argv[4]);
-	if( argc > 5 ) param_filename = argv[5];
-	if( argc > 6 ) config_filename = argv[6];
-	if( argc > 7 ){
-		output_filename = argv[7];
+	std::string target_id = argv[3];
+	if( argc > 4 ){ 
+		try{ ppm_mass_tol = boost::lexical_cast<float>(argv[4]); }
+		catch(boost::bad_lexical_cast e){
+			std::cout << "Invalid ppm_tol: " << argv[4] << std::endl;
+			exit(1);
+		}
+	}
+	if( argc > 5 ){
+		try{ abs_mass_tol = boost::lexical_cast<float>(argv[5]); }
+		catch(boost::bad_lexical_cast e){
+			std::cout << "Invalid abs_tol: " << argv[5] << std::endl;
+			exit(1);
+		}
+	}
+	if( argc > 5 ) param_filename = argv[6];
+	if( argc > 6 ) config_filename = argv[7];
+	if( argc > 8 ){
+		output_filename = argv[8];
 		to_stdout = false;
 	}
-
-	//Read in the input spectrum
-	MolData moldata( "Unknown", smiles_or_inchi.c_str() );
-	moldata.readInSpectraFromFile( spectrum_file );
 
 	//Initialise model configuration
 	config_t cfg;
 	initConfig( cfg, config_filename );
 
+	//Read in the input spectrum
+	MolData moldata( target_id.c_str(), smiles_or_inchi.c_str(), &cfg );
+	if( spectrum_file.substr(spectrum_file.size()-4, 4) == ".msp" ){
+		MspReader msp( spectrum_file.c_str(), "" );
+		moldata.readInSpectraFromMSP( msp );
+	}else moldata.readInSpectraFromFile( spectrum_file );
+
 	//If the mass tolerances are specified on the command line, overwrite the
 	//ones in the config file
-	if( argc > 3 ) cfg.ppm_mass_tol = ppm_mass_tol;
-	if( argc > 4 ) cfg.abs_mass_tol = abs_mass_tol;
+	if( argc > 4 ) cfg.ppm_mass_tol = ppm_mass_tol;
+	if( argc > 5 ) cfg.abs_mass_tol = abs_mass_tol;
 
 	//Read in the parameters or create a blank set
 	Param *param;
 	if( param_filename == "none" ){
 		std::vector<std::string> fnames;	//empty feature set
 		param = new Param(fnames, moldata.getNumSpectra());
-	}else param = new Param( param_filename );
+	}else{ 
+		if( cfg.theta_function == NEURAL_NET_THETA_FUNCTION )
+			param = new NNParam( param_filename );
+		else
+			param = new Param(param_filename);	
+		param = new Param( param_filename );
+	}
 
 	if( param->getNumEnergyLevels() != moldata.getNumSpectra() ){
 		std::cout << "Mismatch between parameter set and spectra. Parameters have ";
@@ -93,10 +116,11 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 
+	std::cout << "TARGET ID: " << target_id << std::endl;
+
 	//Compute the fragmentation graph with transition probabilities
 	FeatureCalculator fc( *param->getFeatureNames() );
-	moldata.setIonizationMode(cfg.ionization_mode == NEGATIVE_IONIZATION_MODE);
-	moldata.computeFragmentGraphAndReplaceMolsWithFVs(cfg.fg_depth, &fc, true);
+	moldata.computeFragmentGraphAndReplaceMolsWithFVs(&fc, true);
 	moldata.computeTransitionThetas(*param);
 	moldata.computeTransitionProbabilities();
 
@@ -111,9 +135,10 @@ int main(int argc, char *argv[])
 		for( int energy = 0; energy < cfg.dv_spectrum_depths.size(); energy++ ){
 			config_t se_cfg;
 			initSingleEnergyConfig(se_cfg, cfg, energy);
-			IPFP ipfp( &moldata, &se_cfg);
-			beliefs_t *sbeliefs = ipfp.calculateBeliefs();
-			concatBeliefs(&beliefs, sbeliefs);
+			Inference infer( &moldata, &se_cfg );
+			beliefs_t sbeliefs;
+			infer.calculateBeliefs( sbeliefs );
+			concatBeliefs(&beliefs, &sbeliefs);
 		}
 	}
 	else{
@@ -124,7 +149,7 @@ int main(int argc, char *argv[])
 
 	//Process the beliefs to extract the fragmentation tree that occurred
 	double log_belief_thresh = std::log(0.00001);
-	moldata.computeEvidenceFragmentGraph(&beliefs, log_belief_thresh, &cfg);
+	moldata.computeEvidenceFragmentGraph(&beliefs, log_belief_thresh);
 
 	//Match peaks to fragments in the reduced tree
 	moldata.readInSpectraFromFile( spectrum_file );

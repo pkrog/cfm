@@ -23,7 +23,9 @@
 
 typedef boost::shared_ptr<RDKit::ROMol> romol_ptr_t;
 
-struct beliefs_t{
+static const double MASS_ELECTRON = 0.000548579909;
+
+struct beliefs_t{	//IN LOG DOMAIN!
 	std::vector<std::vector<double> > tn;	//Transition:  Indexed by transition, then depth
 	std::vector<std::vector<double> > ps;	//Persistence: Indexed by fragment, then depth
 };
@@ -45,10 +47,20 @@ public:
 };
 
 //Helper function to compute the monoisotopic mass of a molecule
-double getMonoIsotopicMass( romol_ptr_t mol, bool addHPlus, bool subtractHPplus);
+double getMonoIsotopicMass( const romol_ptr_t mol );
 
 //Helper function to find an atom with the given label
 RDKit::Atom *getLabeledAtom( romol_ptr_t mol, const char *label );
+
+//Helper function to check for radical electrons within a molecule
+int moleculeHasSingleRadical( const RDKit::ROMol *romol );
+
+//Helper function to identify and label ionic charges
+int addIonicChargeLabels( const RDKit::ROMol *romol );
+
+//Helper function to alter number of Hs on an atom (accounting for implicit Hs)
+void alterNumHs( RDKit::Atom *atom, int H_diff );
+
 romol_ptr_t createMolPtr( const char* smiles_or_inchi );
 
 /* given log(x) and log(y), compute log(x+y). uses the following identity:

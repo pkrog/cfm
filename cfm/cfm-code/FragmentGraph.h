@@ -24,6 +24,7 @@
 #include "Util.h"
 #include "Features.h"
 #include "FragmentTreeNode.h"
+#include "Isotope.h"
 
 typedef std::vector<std::vector<int> > tmap_t;
 
@@ -34,25 +35,33 @@ public:
 	//Constructor, store the ion smiles and a reduced smiles since the ion is
 	//not needed and takes more space.
 	Fragment( std::string &a_ion_smiles, std::string &a_reduced_smiles, int an_id, double a_mass ) : 
-		id( an_id ), ion_smiles(a_ion_smiles), reduced_smiles( a_reduced_smiles ), mass( a_mass ) {};
+		id( an_id ), ion_smiles(a_ion_smiles), reduced_smiles( a_reduced_smiles ), mass( a_mass ), depth(-1) {};
+
+	Fragment( std::string &a_ion_smiles, std::string &a_reduced_smiles, int an_id, double a_mass, Spectrum &a_isotope_spec ) : 
+		id( an_id ), ion_smiles(a_ion_smiles), reduced_smiles( a_reduced_smiles ), mass( a_mass ), isotope_spectrum( a_isotope_spec ), depth(-1) {};
 
 	Fragment( const Fragment &a_fragment, int an_id ) :
 		id( an_id ), ion_smiles(*a_fragment.getIonSmiles()), reduced_smiles( *a_fragment.getReducedSmiles() ), 
-			mass( a_fragment.getMass() ) {};
+			mass( a_fragment.getMass() ), depth(-1) {};
 
 	//Access Functions
 	double getMass() const { return mass; };
+	const Spectrum *getIsotopeSpectrum() const {return &isotope_spectrum; };
 	int getId() const { return id; };
 	void setId( int an_id ){ id = an_id;};
 	const std::string *getReducedSmiles() const {return &reduced_smiles; };
 	const std::string *getIonSmiles() const {return &ion_smiles; };
 	void clearSmiles(){reduced_smiles = std::string(); ion_smiles = std::string();};
+	void setDepth( int a_depth ){ depth = a_depth;};
+	int getDepth() const { return depth; };
 
 protected:
 	int id;
 	std::string reduced_smiles;	//Reduced version of the smiles string (just backbone)
 	std::string ion_smiles;		//Full ion smiles (for writing out if called for)
 	double mass;
+	Spectrum isotope_spectrum;
+	int depth;	//Depth -1 means hasn't been set yet.
 };
 
 class EvidenceFragment : public Fragment{
@@ -121,7 +130,12 @@ private:
 
 class FragmentGraph{
 public:
-	FragmentGraph(){};
+	FragmentGraph() : include_isotopes(false), allow_frag_detours(true), include_h_losses(true), include_h_losses_precursor_only(false) {};
+	FragmentGraph( config_t *cfg ) : include_isotopes(cfg->include_isotopes), allow_frag_detours(cfg->allow_frag_detours), 
+		include_h_losses(cfg->include_h_losses), include_h_losses_precursor_only(cfg->include_precursor_h_losses_only) {
+		if( include_isotopes ) isotope = new IsotopeCalculator(cfg->isotope_thresh);
+	};
+	~FragmentGraph(){ if(include_isotopes) delete isotope; };
 
 	//Add a fragment node to the graph (should be the only way to modify the graph)
 	//	-- Add a fragment, or return an id, if it already exists
@@ -132,16 +146,23 @@ public:
 	int addToGraph( const FragmentTreeNode &node, int parentid );
 	
 	//As for previous function, but delete the mols in the transition and compute and store a feature vector instead
-	int addToGraphAndReplaceMolWithFV( const FragmentTreeNode &node, int parentid, FeatureCalculator *fc );
+	int addToGraphAndReplaceMolWithFV( const FragmentTreeNode &node, int parentid, FeatureCalculator *fc);
 
 	//As for previous function, but don't store the mols in the transition and insert the pre-computed thetas instead
 	int addToGraphWithThetas(const FragmentTreeNode &node, const std::vector<double> *thetas, int parentid );
+
+	//Function to remove detour transitions from the graph (used if !cfg.allow_frag_detours)
+	void removeDetours();
 
 	//Write the Fragments only to file (formerly the backtrack output - without extra details)
 	void writeFragmentsOnly( std::ostream &out ) const;
 
 	//Write the FragmentGraph to file (formerly the transition output - without feature details)
 	void writeFullGraph( std::ostream &out ) const;
+
+	//Write the fragment graph - no smiles, just ids, fragment masses and feature vectors for the transitions.
+	void writeFeatureVectorGraph( std::ostream &out, bool include_isotopes ) const;
+	void readFeatureVectorGraph( std::istream &out );
 
 	//Access functions
 	unsigned int getNumTransitions() const { return transitions.size(); };
@@ -150,6 +171,10 @@ public:
 	const Fragment *getFragmentAtIdx( int index ) const { return &(fragments[index]); };
 	const tmap_t *getFromIdTMap() const { return &from_id_tmap; };
 	const tmap_t *getToIdTMap() const { return &to_id_tmap; };
+	bool hasIsotopesIncluded() const { return include_isotopes; };
+	double getIsotopeThresh() const { return isotope->getIntensityThresh(); };
+	bool includesHLosses() const { return include_h_losses; };
+	bool includesHLossesPrecursorOnly() const { return include_h_losses_precursor_only; };
 
 	//Functions to delete shared romol pointers for ion and nl mols
 	void deleteMolsForTransitionAtIdx( int index );
@@ -160,6 +185,11 @@ protected:
 	std::vector<Transition> transitions;
 	tmap_t from_id_tmap;	//Mapping between from_id and transitions with that from_id
 	tmap_t to_id_tmap;		//Mapping between to_id and transitions with that to_id
+	bool include_isotopes;
+	IsotopeCalculator *isotope;
+	bool allow_frag_detours;
+	bool include_h_losses;
+	bool include_h_losses_precursor_only;
 
 	//Mapping from rounded mass to list of fragment ids, 
 	//to enable fast check for existing fragments
@@ -183,6 +213,8 @@ protected:
 
 class EvidenceFragmentGraph : public FragmentGraph{
 public:
+	EvidenceFragmentGraph( config_t *cfg ) : 
+	  FragmentGraph( cfg ) {};
 	const EvidenceFragment *getFragmentAtIdx( int index ) const { return &(fragments[index]); };
 	unsigned int getNumFragments() const { return fragments.size(); };
 	void writeFragmentsOnly( std::ostream &out ) const;

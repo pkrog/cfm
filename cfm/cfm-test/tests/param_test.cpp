@@ -101,34 +101,37 @@ void ParamsTestComputeTransitionThetas::runTest(){
 
 }
 
+std::vector<int> param_null_eloc;
+
 class ParamTestMol : public MolData {
 public:
-	ParamTestMol() : MolData("Param Test Mol", ""){
+	ParamTestMol(config_t *cfg) : MolData("Param Test Mol", "", cfg){
 
-		setIonizationMode(false);
 		//Create a molecule based on what was previously in test_bn_transition.txt
-		(*fg) = new FragmentGraph();
-		romol_ptr_t basic_nl( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C")) );
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("NCCCN")) ), basic_nl,-1, -1, false), -1 ); //id = 0
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH4+]")) ), basic_nl,-1, -1, false), 0 ); // id = 1, 0 -> 1
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C=CC[NH3+]")) ), basic_nl,-1, -1, false), 0 ); //id = 2, 0 -> 2
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[NH4+]")) ), basic_nl,-1, -1, false), 2 ); // 2 -> 1
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("C=C=[NH2+]")) ), basic_nl,-1, -1, false), 2 );  //id = 3, 2 -> 3
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[CH3+]")) ), basic_nl,-1, -1, false), 2 ); //id = 4, 2->4
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>(RDKit::SmilesToMol("[CH3+]")) ), basic_nl, -1, -1, false),3 ); //3->4
-		(*fg)->addToGraph( FragmentTreeNode( romol_ptr_t( static_cast<RDKit::ROMol *>( RDKit::SmilesToMol("[C+]#N")) ), basic_nl,-1, -1, false), 3 ); //id = 5, 3->5
+		fg = new FragmentGraph();
+		FeatureHelper fh;
+		romol_ptr_t basic_nl = createMolPtr("C");
+		fg->addToGraph( FragmentTreeNode( createMolPtr("NCCCN"), basic_nl,-1, -1, &fh, param_null_eloc), -1 ); //id = 0
+		fg->addToGraph( FragmentTreeNode( createMolPtr("[NH4+]"), basic_nl,-1, -1, &fh, param_null_eloc), 0 ); // id = 1, 0 -> 1
+		fg->addToGraph( FragmentTreeNode( createMolPtr("C=CC[NH3+]"), basic_nl,-1, -1, &fh, param_null_eloc), 0 ); //id = 2, 0 -> 2
+		fg->addToGraph( FragmentTreeNode( createMolPtr("[NH4+]"), basic_nl,-1, -1, &fh, param_null_eloc), 2 ); // 2 -> 1
+		fg->addToGraph( FragmentTreeNode( createMolPtr("C=C=[NH2+]"), basic_nl,-1, -1, &fh, param_null_eloc), 2 );  //id = 3, 2 -> 3
+		fg->addToGraph( FragmentTreeNode( createMolPtr("[CH3+]"), basic_nl,-1, -1, &fh, param_null_eloc), 2 ); //id = 4, 2->4
+		fg->addToGraph( FragmentTreeNode( createMolPtr("[CH3+]"), basic_nl, -1, -1, &fh, param_null_eloc),3 ); //3->4
+		fg->addToGraph( FragmentTreeNode( createMolPtr("[C+]#N"), basic_nl,-1, -1, &fh, param_null_eloc), 3 ); //id = 5, 3->5
+		graph_computed = true;
 
 		//Add a simple feature vector to each transition
-		unsigned int num_trans = (*fg)->getNumTransitions();
-		(*fvs).resize( num_trans ); 
+		unsigned int num_trans = fg->getNumTransitions();
+		fvs.resize( num_trans ); 
 		for( unsigned int i = 0; i < num_trans; i++ ){
-			(*fvs)[i] = new FeatureVector();
-			(*fvs)[i]->addFeature(1.0);			//Bias term
-			(*fvs)[i]->addFeatureAtIdx(0.0, 10);	//Resize to 11 (Using HydrogenMovement feature to initialise params)
+			fvs[i] = new FeatureVector();
+			fvs[i]->addFeature(1.0);			//Bias term
+			fvs[i]->addFeatureAtIdx(0.0, 10);	//Resize to 11 (Using HydrogenMovement feature to initialise params)
 		}
-		(*fvs)[1]->addFeatureAtIdx(1.0,1);	//Transition 0->2
-		(*fvs)[3]->addFeatureAtIdx(1.0,1); //Transition 2->3
-		(*fvs)[4]->addFeatureAtIdx(1.0,1); //Transition 2->4
+		fvs[1]->addFeatureAtIdx(1.0,1);	//Transition 0->2
+		fvs[3]->addFeatureAtIdx(1.0,1); //Transition 2->3
+		fvs[4]->addFeatureAtIdx(1.0,1); //Transition 2->4
 	}
 };
 
@@ -152,11 +155,10 @@ void ParamsTestComputeAndAccumulateGradient::runTest(){
 	int tmp_array[3] = {1,2,3};
 	cfg.spectrum_depths.assign(tmp_array, tmp_array+3);
 	cfg.lambda = 0.01;
-	cfg.interpolate_spectra = 0;
 	initDerivedConfig(cfg);
 
 	//Create the molecule data
-	ParamTestMol moldata;
+	ParamTestMol moldata(&cfg);
 
 	//Set some arbitrary parameter weights (only used in the regularizer term and for sizing)
 	std::vector<std::string> fnames;
@@ -170,6 +172,11 @@ void ParamsTestComputeAndAccumulateGradient::runTest(){
 	param.setWeightAtIdx(0.25, med_offset);
 	param.setWeightAtIdx(0.1, high_offset);
 	param.setWeightAtIdx(-0.1, 1+high_offset);
+	
+	std::string param_filename = "tmp_param_file.log";
+	if( boost::filesystem::exists( param_filename ) )
+		boost::filesystem::remove( param_filename );
+	param.saveToFile( param_filename );
 
 	//Set some arbitrary suft values
 	suft.values.resize(1);
@@ -196,12 +203,17 @@ void ParamsTestComputeAndAccumulateGradient::runTest(){
 	std::set<unsigned int> used_idxs;
 	FeatureCalculator fc_null(fnames); 
 	std::string null_str = "null";
-	EM em(&cfg, &fc_null, null_str );
-	double Q = em.computeAndAccumulateGradient(grads, 0, moldata, &param, suft, used_idxs);
+	EM em(&cfg, &fc_null, null_str, param_filename );
+	double Q_only = em.computeQ( 0, moldata, suft );
+	double Q = em.computeAndAccumulateGradient(&grads[0], 0, moldata, suft, true, used_idxs);
 	
 	//Check Q
 	if( fabs(Q - -3.823 )  > tol ){
 		std::cout << "Unexpected Q value resulting from gradient computation: " << Q << std::endl;
+		pass = false;
+	}
+	if( fabs(Q_only - -3.823 )  > tol ){
+		std::cout << "Unexpected Q value resulting from Q only computation: " << Q << std::endl;
 		pass = false;
 	}
 
