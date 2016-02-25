@@ -107,6 +107,7 @@ double EM::run( std::vector<MolData> &data, int group, std::string &out_param_fi
 	// EM
 	iter = 0;
 	double Q, prevQ = -10000000.0;
+	int count_no_progress = 0;
 	while( iter < MAX_EM_ITERATIONS ){
 
 		std::string iter_out_param_filename = out_param_filename + "_" + boost::lexical_cast<std::string>(iter);
@@ -131,7 +132,10 @@ double EM::run( std::vector<MolData> &data, int group, std::string &out_param_fi
 		for( int molidx = 0; itdata != data.end(); ++itdata, molidx++ ){
 		
 			if( !itdata->hasComputedGraph() ) continue;	//If we couldn't compute it's graph for some reason..
-			if( itdata->hasEmptySpectrum() ) continue; //Ignore any molecule with poor (no peaks matched a fragment) or missing spectra.
+			if( itdata->hasEmptySpectrum() ){ 
+				std::cout << "Warning: No peaks with explanatory fragment found for " << itdata->getId() << ", ignoring this input molecule." << std::endl;
+				continue; //Ignore any molecule with poor (no peaks matched a fragment) or missing spectra.
+			}
 
 			if( itdata->getGroup() == validation_group ) continue;
 
@@ -233,8 +237,12 @@ double EM::run( std::vector<MolData> &data, int group, std::string &out_param_fi
 			writeStatus(qdif_str.c_str());
 			comm->printToMasterOnly(qdif_str.c_str());
 		}
+
+		if( Qratio < 1e-15 ) count_no_progress += 1;
+		else count_no_progress = 0;
+
 		prevQ = Q;
-		if( Qratio < cfg->em_converge_thresh ){ 
+		if( Qratio < cfg->em_converge_thresh || count_no_progress >= 3 ){ 
 			comm->printToMasterOnly(("EM Converged after " + boost::lexical_cast<std::string>(iter) + " iterations").c_str());
 			break;
 		}
