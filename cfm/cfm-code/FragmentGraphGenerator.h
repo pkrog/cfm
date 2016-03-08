@@ -48,6 +48,13 @@ class FragmentGraphMaxSizeExceededException: public std::exception{
 	}
 };
 
+class FragmentGraphTimeoutException: public std::exception{
+
+	virtual const char* what() const throw(){
+		return "Molecule fragment graph computation exceeded timeout, unable to proceed.";
+	}
+};
+
 //Class for generating a FragmentGraph given a starting node in the
 //enumerated fragmentation tree and a depth
 class FragmentGraphGenerator{
@@ -122,6 +129,7 @@ private:
 	bool is_nn_params;
 	config_t *cfg;
 	double log_prob_thresh;
+	time_t start_time;
 
 	//Record of previous computations so we know to what probability each fragment has been computed at
 	std::map<int, double> id_prob_computed_cache;	

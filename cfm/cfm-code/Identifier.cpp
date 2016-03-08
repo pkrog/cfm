@@ -103,16 +103,18 @@ void Identifier::rankCandidatesForSpecMatch( std::vector<Candidate> &candidates,
 
 				if(postprocess) moldata.postprocessPredictedSpectra();
 				if(abs_mass_tol == 0.5 && !postprocess ) moldata.quantisePredictedSpectra(0);	//Integer precision data, combine integer masses.
-
-				//Write the predicted spectra to the output file
-				if( output_mode == MSP_OUTPUT_MODE ) moldata.writePredictedSpectraToMspFileStream( *spec_out );
-				else if( output_mode == MGF_OUTPUT_MODE ) moldata.writePredictedSpectraToMgfFileStream( *spec_out );
 			
-				//Compute the score for the current candidate:
-				// - The score is the sum of the comparison scores between all the target and predicted spectra
 				if(postprocess == (int)post_process_spectra){
-					for( unsigned int energy = 0; energy < target_spectra->size(); energy++ )
+				
+					//Write the predicted spectra to the output file
+					if( output_mode == MSP_OUTPUT_MODE ) moldata.writePredictedSpectraToMspFileStream( *spec_out );
+					else if( output_mode == MGF_OUTPUT_MODE ) moldata.writePredictedSpectraToMgfFileStream( *spec_out );
+
+					//Compute the score for the current candidate:
+					// - The score is the sum of the comparison scores between all the target and predicted spectra
+					for( unsigned int energy = 0; energy < target_spectra->size(); energy++ ){
 						score += cmp->computeScore( &((*target_spectra)[energy]), moldata.getPredictedSpectrum(energy));
+					}
 				}
 
 				//Compute and report all comparator scores: (hack to save computation during testing - enabled by output_all_scores flag (disabled by default))
@@ -134,9 +136,12 @@ void Identifier::rankCandidatesForSpecMatch( std::vector<Candidate> &candidates,
 		catch( RDKit::SmilesParseException pe ){
 			std::cout << "Could not parse " << *it->getSmilesOrInchi() << std::endl;		
 		}
-		catch( FragmentGraphGenerationException ){
+		catch( FragmentGraphGenerationException e ){
 			std::cout << "Could not compute fragmentation graph for " << *it->getSmilesOrInchi() << std::endl;
 		}		
+		catch( FragmentGraphTimeoutException te ){
+			std::cout << "Timeout computing fragmentation graph for input: " << *it->getSmilesOrInchi() << std::endl;	
+		}
 		catch( std::exception e ){
 			std::cout << "Exception occurred:" << e.what() << std::endl;
 		}

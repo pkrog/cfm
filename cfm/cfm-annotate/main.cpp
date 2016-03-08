@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
 	double ppm_mass_tol = DEFAULT_PPM_MASS_TOL;
 	double abs_mass_tol = DEFAULT_ABS_MASS_TOL;
 
-	if (argc < 3 || argc > 8 )
+	if (argc < 3 || argc > 9 )
 	{
 		std::cout << std::endl << std::endl;
 		std::cout << std::endl << "Usage: cfm-annotate.exe <smiles_or_inchi> <spectrum_file> <id> <ppm_mass_tol> <abs_mass_tol> <param_filename> <config_filename> <output_filename>" << std::endl << std::endl << std::endl;

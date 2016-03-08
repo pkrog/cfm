@@ -165,7 +165,6 @@ void readInCandidates( std::vector<PrecomputedCandidate> &candidates, std::strin
 
 		std::stringstream ss(line);
 		ss >> id >> smiles_or_inchi >> spectrum_filename;
-		smiles_or_inchi = "";
 
 		if( spectrum_filename.substr(spectrum_filename.size()-4, 4) == ".msp" ){
 			if( msps.find( spectrum_filename ) == msps.end() ){
