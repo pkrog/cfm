@@ -63,6 +63,7 @@ void initDefaultConfig( config_t &cfg ){
 	cfg.obs_function = DEFAULT_OBS_FUNCTION;
 	cfg.include_h_losses = DEFAULT_INCLUDE_H_LOSSES;
 	cfg.include_precursor_h_losses_only = DEFAULT_INCLUDE_PRECURSOR_H_LOSSES_ONLY;
+	cfg.fragraph_compute_timeout_in_secs = DEFAULT_FRAGGRAPH_COMPUTE_TIMEOUT_IN_SECS;
 }
 
 
@@ -122,6 +123,7 @@ void initConfig( config_t &cfg, std::string &filename, bool report_all ){
 		else if( name == "obs_function" ) cfg.obs_function = (int)value;
 		else if( name == "include_h_losses" ) cfg.include_h_losses = (int)value;
 		else if( name == "include_precursor_h_losses_only" ) cfg.include_precursor_h_losses_only = (int)value;
+		else if( name == "fragraph_compute_timeout_in_secs" ) cfg.fragraph_compute_timeout_in_secs = (int)value;
 		else std::cout << "Warning: Unknown paramater configuration identifier " << name << std::endl;
 	}
 	ifs.close();
@@ -223,6 +225,7 @@ void initConfig( config_t &cfg, std::string &filename, bool report_all ){
 			std::cout << "Warning: Unrecognised observation function (" << cfg.obs_function << "). Using default" << std::endl;
 			cfg.obs_function = DEFAULT_OBS_FUNCTION;
 		}
+		if( cfg.fragraph_compute_timeout_in_secs > 0) std::cout << "Timeout set on fragment graph computation to " << cfg.fragraph_compute_timeout_in_secs << " mins" << std::endl;
 	}
 }
 

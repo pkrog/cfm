@@ -130,6 +130,9 @@ static const int NORMAL_OBS_FUNCTION = 1;
 static const int UNIFORM_OBS_FUNCTION = 2;
 static const int DEFAULT_OBS_FUNCTION = NORMAL_OBS_FUNCTION;
 
+//Timeout settings
+static const int DEFAULT_FRAGGRAPH_COMPUTE_TIMEOUT_IN_SECS = -1;	//-1 is no timeout.
+
 //Configuration
 struct config_t{
 	
@@ -189,6 +192,8 @@ struct config_t{
 	int ga_minibatch_nth_size;
 	int ga_max_iterations;
 	int ga_momentum;
+
+	int fragraph_compute_timeout_in_secs;
 
 };
 

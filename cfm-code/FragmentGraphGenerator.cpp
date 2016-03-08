@@ -197,6 +197,16 @@ void FragmentGraphGenerator::compute( FragmentTreeNode &node, int remaining_dept
 //The output will be appended to the current_graph
 void LikelyFragmentGraphGenerator::compute( FragmentTreeNode &node,  int remaining_depth, int parentid, double parent_log_prob, int remaining_ring_breaks ){
 	
+	//Check Timeout
+	if( parentid < 0 ) start_time = time( NULL );
+	time_t current_time = time(NULL);
+	if( cfg->fragraph_compute_timeout_in_secs > 0 ){
+		if( (current_time - start_time ) > cfg->fragraph_compute_timeout_in_secs )
+			throw FragmentGraphTimeoutException();
+	}
+
+
+
 	//Add the node to the graph, and return a fragment id: note, no mols or fv will be set,
 	//but the precomputed theta value will be used instead
 	int id = -1;

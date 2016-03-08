@@ -482,6 +482,10 @@ void MolData::computePredictedSpectra( Param &param, bool postprocess, bool use_
 	}
 
 	if( postprocess ) postprocessPredictedSpectra();
+	else{
+		for( unsigned int energy = 0; energy < cfg->spectrum_depths.size(); energy++ )
+			predicted_spectra[energy].normalizeAndSort();
+	}
 }
 
 void MolData::computePredictedSingleEnergySpectra( Param &param, bool postprocess, bool use_existing_thetas ){
@@ -514,6 +518,10 @@ void MolData::computePredictedSingleEnergySpectra( Param &param, bool postproces
 	}
 
 	if( postprocess ) postprocessPredictedSpectra();
+	else{
+		for( unsigned int energy = 0; energy < cfg->spectrum_depths.size(); energy++ )
+			predicted_spectra[energy].normalizeAndSort();
+	}
 }
 
 void MolData::translatePeaksFromMsgToSpectra( Spectrum &out_spec, Message *msg ){
