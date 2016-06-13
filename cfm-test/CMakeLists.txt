@@ -25,10 +25,10 @@ add_executable ( cfm-test ${SRC_FILES} )
 target_link_libraries ( cfm-test cfm-code ${REQUIRED_LIBS} )
 
 install ( TARGETS cfm-test 
-          DESTINATION ${CFM_OUTPUT_DIR} )
+          DESTINATION bin )
           
 install ( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_data
-          DESTINATION ${CFM_OUTPUT_DIR}/tests )          
+          DESTINATION bin )          
           
           
           

@@ -54,4 +54,4 @@ add_library ( cfm-code STATIC ${SRC_FILES} ${HEADER_FILES} )
 target_link_libraries ( cfm-code ${REQUIRED_LIBS} )
 
 install ( FILES ${CMAKE_CURRENT_SOURCE_DIR}/ISOTOPE.DAT
-          DESTINATION ${CFM_OUTPUT_DIR} )    
+          DESTINATION share )    

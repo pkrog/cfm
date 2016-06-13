@@ -13,7 +13,7 @@ add_executable ( cfm-id-precomputed ${SRC_FILES} )
 target_link_libraries ( cfm-id-precomputed cfm-code ${REQUIRED_LIBS} )
 
 install ( TARGETS cfm-id-precomputed 
-          DESTINATION ${CFM_OUTPUT_DIR} )
+          DESTINATION bin )
           
 if (WIN32)
     install ( FILES ${LPSOLVE_INCLUDE_DIR}/lpsolve55.dll

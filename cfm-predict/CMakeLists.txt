@@ -13,7 +13,7 @@ add_executable ( cfm-predict ${SRC_FILES} )
 target_link_libraries ( cfm-predict cfm-code ${REQUIRED_LIBS} )
 
 install ( TARGETS cfm-predict
-          DESTINATION ${CFM_OUTPUT_DIR} )
+          DESTINATION bin )
           
 if (WIN32)
     install ( FILES ${LPSOLVE_INCLUDE_DIR}/lpsolve55.dll
