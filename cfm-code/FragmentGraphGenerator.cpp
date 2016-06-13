@@ -26,7 +26,7 @@
 #include <GraphMol/RingInfo.h>
 #include <GraphMol/SmilesParse/SmilesParse.h>
 #include <GraphMol/SmilesParse/SmilesWrite.h>
-#include <INCHI-API/inchi.h>
+#include <GraphMol/inchi.h>
 
 
 

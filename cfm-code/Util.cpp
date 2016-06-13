@@ -21,7 +21,7 @@
 #include <GraphMol/MolOps.h>
 #include <GraphMol/PeriodicTable.h>
 #include <GraphMol/AtomIterators.h>
-#include <INCHI-API/inchi.h>
+#include <GraphMol/inchi.h>
 
 double getMassTol( double abs_tol, double ppm_tol, double mass ){
 	double mass_tol = (mass/1000000.0) * ppm_tol;

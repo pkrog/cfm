@@ -28,7 +28,7 @@
 #include <GraphMol/RDKitBase.h>
 #include <GraphMol/Fingerprints/Fingerprints.h>
 #include <RDGeneral/types.h>
-#include <INCHI-API/inchi.h>
+#include <GraphMol/inchi.h>
 
 #include <string>
 #include <iostream>

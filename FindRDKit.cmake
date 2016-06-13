@@ -47,28 +47,29 @@ else()
           $ENV{RDBASE}/Code
           /usr/local/rdkit/include/Code
           /usr/local/rdkit/include
+          /usr/local/include/rdkit
           /usr/local/rdkit/Code
           ~/rdkit/Code
       )
-      find_path(RDKIT_INCLUDE_EXT_DIR INCHI-API/inchi.h
-        PATHS
-          ${RDKIT_DIR}/External
-          $ENV{RDKIT_INCLUDE_EXT_DIR}
-          $ENV{RDKIT_INCLUDE_EXT_PATH}
-          $ENV{RDKIT_BASE}/External
-          $ENV{RDBASE}/External
-          /usr/local/rdkit/include/External
-          /usr/local/rdkit/include
-          /usr/local/rdkit/External
-          ~/rdkit/External
-      )      
+  #      find_path(RDKIT_INCLUDE_EXT_DIR INCHI-API/inchi.h
+  #        PATHS
+  #          ${RDKIT_DIR}/External
+  #          $ENV{RDKIT_INCLUDE_EXT_DIR}
+  #          $ENV{RDKIT_INCLUDE_EXT_PATH}
+  #          $ENV{RDKIT_BASE}/External
+  #          $ENV{RDBASE}/External
+  #          /usr/local/rdkit/include/External
+  #          /usr/local/rdkit/include
+  #          /usr/local/rdkit/External
+  #          ~/rdkit/External
+  #      )      
     endif()
     if(RDKIT_INCLUDE_DIR)
        message(STATUS "Found RDKit include files at ${RDKIT_INCLUDE_DIR}")
     endif()
-    if(RDKIT_INCLUDE_EXT_DIR)
-       message(STATUS "Found RDKit include files at ${RDKIT_INCLUDE_EXT_DIR}")
-    endif()    
+	#    if(RDKIT_INCLUDE_EXT_DIR)
+	#       message(STATUS "Found RDKit include files at ${RDKIT_INCLUDE_EXT_DIR}")
+	#    endif()    
   endif()
 
   if(NOT RDKIT_LIBRARIES)
@@ -138,10 +139,10 @@ else()
     endif()
   endif()
 
-  if(RDKIT_INCLUDE_DIR AND RDKIT_INCLUDE_EXT_DIR AND RDKIT_LIBRARIES)
+  if(RDKIT_INCLUDE_DIR AND RDKIT_LIBRARIES)
     set(RDKIT_FOUND TRUE)
   endif()
 
   mark_as_advanced(RDINCHI_LIB INCHI_LIB GASTEIGER_LIB SUBSTRUCT_LIB RDGENERAL_LIB RDGEOMETRYLIB_LIB GRAPHMOL_LIB DEPICTOR_LIB SMILESPARSE_LIB FILEPARSERS_LIB)
-  mark_as_advanced(RDKIT_INCLUDE_DIR RDKIT_INCLUDE_EXT_DIR RDKIT_LIBRARIES)
+  mark_as_advanced(RDKIT_INCLUDE_DIR RDKIT_LIBRARIES)
 endif()
