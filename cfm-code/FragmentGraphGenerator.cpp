@@ -26,7 +26,11 @@
 #include <GraphMol/RingInfo.h>
 #include <GraphMol/SmilesParse/SmilesParse.h>
 #include <GraphMol/SmilesParse/SmilesWrite.h>
+#ifdef __APPLE__
+#include <GraphMol/inchi.h>
+#else
 #include <INCHI-API/inchi.h>
+#endif
 
 
 

@@ -28,7 +28,11 @@
 #include <GraphMol/RDKitBase.h>
 #include <GraphMol/Fingerprints/Fingerprints.h>
 #include <RDGeneral/types.h>
+#ifdef __APPLE__
+#include <GraphMol/inchi.h>
+#else
 #include <INCHI-API/inchi.h>
+#endif
 
 #include <string>
 #include <iostream>
