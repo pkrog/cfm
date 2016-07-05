@@ -53,7 +53,7 @@ endif ()
 add_library ( cfm-code STATIC ${SRC_FILES} ${HEADER_FILES} )
 target_link_libraries ( cfm-code ${REQUIRED_LIBS} )
 
-if (MAKE_SYSTEM_NAME STREQUAL "Darwin")
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 	install ( FILES ${CMAKE_CURRENT_SOURCE_DIR}/ISOTOPE.DAT
           	  DESTINATION share )    
 else()
