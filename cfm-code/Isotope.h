@@ -62,7 +62,7 @@ class IsotopeCalculationException: public std::exception{
 class IsotopeCalculator{
 
 public:
-	IsotopeCalculator( double a_intensity_thresh ) : verbose(0), intensity_thresh( a_intensity_thresh) { init_data("ISOTOPE.DAT"); };
+	IsotopeCalculator( double a_intensity_thresh ) : verbose(0), intensity_thresh( a_intensity_thresh) { init_data(); };
 	void computeIsotopeSpectrum( Spectrum &output, const romol_ptr_t mol, long charge );
 	void setVerbose(){ verbose = true; };
 	double getIntensityThresh() const { return intensity_thresh; };
@@ -76,7 +76,7 @@ private:
 	void setFormulaMap( FormMap &output, const romol_ptr_t mol );
 
 	//The remainder of the functions are copied directly from emass (with minor mods)
-	void init_data( const char *filename );
+	void init_data();
 	void convolute_basic(Pattern & h, const Pattern & g, const Pattern & f);
 	void prune(Pattern & f, double limit);
 	void calculate(Pattern & tmp, Pattern & result, FormMap & fm, double limit, long charge);
