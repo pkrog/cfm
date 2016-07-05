@@ -24,11 +24,12 @@ set ( SRC_FILES  test.cpp
 add_executable ( cfm-test ${SRC_FILES} )
 target_link_libraries ( cfm-test cfm-code ${REQUIRED_LIBS} )
 
-install ( TARGETS cfm-test 
-          DESTINATION ${CFM_OUTPUT_DIR} )
-          
-install ( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_data
-          DESTINATION ${CFM_OUTPUT_DIR}/tests )          
-          
-          
-          
+if (MAKE_SYSTEM_NAME NOT STREQUAL "Darwin")
+	install ( TARGETS cfm-test 
+          	  DESTINATION ${CFM_OUTPUT_DIR} )
+          	  
+	install ( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/test_data
+          	  DESTINATION ${CFM_OUTPUT_DIR}/tests )          
+	# TODO For macOS, use cmake testing feature to run tests through `make test`. See <https://cmake.org/Wiki/CMake/Testing_With_CTest>. After, generalize for all operation systems.
+endif()
+

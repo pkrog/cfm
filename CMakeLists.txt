@@ -15,7 +15,10 @@ cmake_minimum_required(VERSION 2.6)
 
 project (cfm)
 
-set (CFM_OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/bin CACHE STRING "Where do you want the output binaries to install to?" )
+if (MAKE_SYSTEM_NAME NOT STREQUAL "Darwin")
+	set (CFM_OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/bin CACHE STRING "Where do you want the output binaries to install to?" )
+	# For macOS, just use the standard CMAKE_INSTALL_PREFIX variable that you can set on command line. See <https://cmake.org/cmake/help/v3.0/command/install.html>.
+endif()
 
 #It is recommended, but not strictly necessary, to build and run the tests
 set( INCLUDE_TESTS OFF CACHE BOOL "Do you want to build the tests?" )
