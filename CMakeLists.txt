@@ -15,7 +15,7 @@ cmake_minimum_required(VERSION 2.6)
 
 project (cfm)
 
-if (NOT MAKE_SYSTEM_NAME STREQUAL "Darwin")
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 	set (CFM_OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/bin CACHE STRING "Where do you want the output binaries to install to?" )
 	# For macOS, just use the standard CMAKE_INSTALL_PREFIX variable that you can set on command line. See <https://cmake.org/cmake/help/v3.0/command/install.html>.
 endif()

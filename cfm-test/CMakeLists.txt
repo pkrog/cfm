@@ -24,7 +24,7 @@ set ( SRC_FILES  test.cpp
 add_executable ( cfm-test ${SRC_FILES} )
 target_link_libraries ( cfm-test cfm-code ${REQUIRED_LIBS} )
 
-if (NOT MAKE_SYSTEM_NAME STREQUAL "Darwin")
+if (NOT CMAKE_SYSTEM_NAME STREQUAL "Darwin")
 	install ( TARGETS cfm-test 
           	  DESTINATION ${CFM_OUTPUT_DIR} )
           	  
