@@ -12,8 +12,13 @@ set ( SRC_FILES  main.cpp )
 add_executable ( cfm-annotate ${SRC_FILES} )
 target_link_libraries ( cfm-annotate cfm-code ${REQUIRED_LIBS} )
 
-install ( TARGETS cfm-annotate 
-          DESTINATION ${CFM_OUTPUT_DIR} )
+if (MAKE_SYSTEM_NAME STREQUAL "Darwin")
+	install ( TARGETS cfm-annotate 
+          	  DESTINATION bin )
+else()
+	install ( TARGETS cfm-annotate 
+          	  DESTINATION ${CFM_OUTPUT_DIR} )
+endif()
           
 if (WIN32)
     install ( FILES ${LPSOLVE_INCLUDE_DIR}/lpsolve55.dll

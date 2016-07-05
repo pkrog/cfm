@@ -37,7 +37,21 @@ else()
         C:\\RDKit\\include
         C:\\RDKit\\External
       )
-    else()
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+      find_path(RDKIT_INCLUDE_DIR GraphMol/RDKitBase.h
+        PATHS
+          ${RDKIT_DIR}/Code
+          $ENV{RDKIT_INCLUDE_DIR}
+          $ENV{RDKIT_INCLUDE_PATH}
+          $ENV{RDKIT_BASE}/Code
+          $ENV{RDBASE}/Code
+          /usr/local/rdkit/include/Code
+          /usr/local/rdkit/include
+          /usr/local/include/rdkit
+          /usr/local/rdkit/Code
+          ~/rdkit/Code
+      )
+    else() # Other UNIX systems
       find_path(RDKIT_INCLUDE_DIR GraphMol/RDKitBase.h
         PATHS
           ${RDKIT_DIR}/Code
@@ -138,10 +152,20 @@ else()
     endif()
   endif()
 
-  if(RDKIT_INCLUDE_DIR AND RDKIT_INCLUDE_EXT_DIR AND RDKIT_LIBRARIES)
-    set(RDKIT_FOUND TRUE)
+  if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  	  if(RDKIT_INCLUDE_DIR AND RDKIT_LIBRARIES)
+    	set(RDKIT_FOUND TRUE)
+  	endif()
+  else ()
+  	  if(RDKIT_INCLUDE_DIR AND RDKIT_INCLUDE_EXT_DIR AND RDKIT_LIBRARIES)
+    	set(RDKIT_FOUND TRUE)
+  	endif()
   endif()
 
   mark_as_advanced(RDINCHI_LIB INCHI_LIB GASTEIGER_LIB SUBSTRUCT_LIB RDGENERAL_LIB RDGEOMETRYLIB_LIB GRAPHMOL_LIB DEPICTOR_LIB SMILESPARSE_LIB FILEPARSERS_LIB)
-  mark_as_advanced(RDKIT_INCLUDE_DIR RDKIT_INCLUDE_EXT_DIR RDKIT_LIBRARIES)
+  if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+  	mark_as_advanced(RDKIT_INCLUDE_DIR RDKIT_LIBRARIES)
+  else ()
+  	mark_as_advanced(RDKIT_INCLUDE_DIR RDKIT_INCLUDE_EXT_DIR RDKIT_LIBRARIES)
+  endif()
 endif()
